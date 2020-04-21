@@ -1,77 +1,65 @@
-# Tidepool Data Science Project Template
+# Tidepool Data Science Modeling
 
 
-# Project Name
-Give this project a name
+# Metabolism Modeling
 
-#### -- Project Status: [Active, On-Hold, Completed]
+#### -- Project Status: [Active]
 
 ## Project Intro/Objective
-The purpose of this project is ________. (Describe the main goals of the project and potential civic impact. Limit to a short paragraph, 3-6 Sentences)
-
-### Partner
-* [Name of Partner organization/Government department etc..]
-* Website for partner
-* Partner contact: [Name of Contact], [slack handle of contact if any]
-* If you do not have a partner leave this section out
+The purpose of this project is providing metabolism modeling
+tools as a stand alone library for use in other Tidepool
+data science projects.
 
 ### Methods Used
-* Inferential Statistics
-* Machine Learning
-* Data Visualization
-* Predictive Modeling
-* etc.
+* Time Series
 
 ### Technologies
-* R
-* Python
-* D3
-* PostGres, MySql
-* Pandas, jupyter
-* HTML
-* JavaScript
-* etc.
+* Python3
 
 ## Project Description
-(Provide more detailed overview of the project.  Talk a bit about your data sources and what questions and hypothesis you are exploring. What specific data analysis/visualization and modelling work are you using to solve the problem? What blockers and challenges are you facing?  Feel free to number or bullet point things here)
+This code was born out of the iCGM risk analysis plan for Loop
+FDA submission. Since it will likely be useful to have modeled
+carb/insulin/etc. in a variety of contexts it has been refactored
+and put in this repo for easier use and testing.
 
 ## Needs of this project
 
-- frontend developers
-- data exploration/descriptive statistics
-- data processing/cleaning
-- statistical modeling
-- writeup/reporting
-- etc. (be as specific as possible)
 
 ## Getting Started
 
-1. Clone this repo (for help see this [tutorial](https://help.github.com/articles/cloning-a-repository/)).
-2. Raw Data is being kept [here](Repo folder containing raw data) within this repo.
+1. Clone this repo (for help see the github [tutorial](https://help.github.com/articles/cloning-a-repository/)).
+2. Import the model of interest and run. Example:
+```
+from src.models.simple_metabolism_model import SimpleMetabolismModel
 
-*If using offline data mention that and how they may obtain the data from the froup)*
+smm = SimpleMetabolismModel(
+        insulin_sensitivity_factor=isf,
+        carb_insulin_ratio=cir,
+        insulin_model_name="palerm",
+        carb_model_name="cescon",
+      )
 
-3. Data processing/transformation scripts are being kept [here](Repo folder containing data processing scripts/notebooks)
-4. etc...
-
-*If your project is well underway and setup is fairly complicated (ie. requires installation of many packages) create another "setup.md" file and link to it here*
-
-5. Follow setup [instructions](Link to file)
-
-## Featured Notebooks/Analysis/Deliverables
-* [Notebook/Markdown/Slide Deck Title](link)
-* [Notebook/Markdown/Slide DeckTitle](link)
-* [Blog Post](link)
+(
+    net_change_in_bg_smm,
+    t_5min_smm,
+    carb_amount_smm,
+    insulin_amount_smm,
+    iob_5min_smm,
+) = smm.run(num_hours=8, carb_amount=0.0, insulin_amount=1.0)
+```
 
 
-## Contributing Members
 
-**Team Leads (Contacts) : [Full Name](https://github.com/[github handle])(@slackHandle)**
+## Available Models
 
-#### Other Members:
+![Insulin Models](reports/figures/insulin_models_plot.png?raw=True)
+![Carb Models](reports/figures/carb_models_plot.png?raw=True)
 
-|Name     |  Slack Handle   |
-|---------|-----------------|
-|[Full Name](https://github.com/[github handle])| @johnDoe        |
-|[Full Name](https://github.com/[github handle]) |     @janeDoe    |
+
+## Team Members
+
+**[Ed Nykaza](https://github.com/ed-nykaza)**
+**[Cameron Summers](https://github.com/scaubrey)**
+**[Jason Meno](https://github.com/jameno)**
+
 
