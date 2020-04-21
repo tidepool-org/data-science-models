@@ -1,0 +1,9 @@
+matplotlib==3.2.1
+pandas==1.0.3
+pip-chill==1.0.0
+plotly==4.6.0
+pytest==5.4.1
+python-dotenv==0.13.0
+requests==2.23.0
+scipy==1.4.1
+black==19.10b0

@@ -1,0 +1,4 @@
+A place to collect figures. At the very least, the figure name should include a short name with dashes for readability, and should be appended with the date, dataset used (optional) and end with the version. 
+
+For example, <short-name>_<date>_<dataset-name>_<version>.<extension>
+example-figure_2020-04-21-11-45-AM_mnist-2019_v-0-1.png
