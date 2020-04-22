@@ -1,12 +1,17 @@
+"""
+Visual explanations of the models
+"""
+import os
 import matplotlib.pyplot as plt
 import matplotlib.style as style
 
 style.use("seaborn-poster")  # sets the size of the charts
 style.use("ggplot")
 
-
 from src.models.treatment_models import PalermInsulinModel, CesconCarbModel
 from src.utils import get_timeseries
+
+figures_path = os.path.join(os.getcwd(), "../../reports/figures")
 
 insulin_models_to_plot = [PalermInsulinModel]
 carb_models_to_plot = [CesconCarbModel]
@@ -34,7 +39,7 @@ plt.title(
     )
 )
 plt.legend()
-plt.savefig("../../reports/figures/insulin_models_plot.png")
+plt.savefig(os.path.join(figures_path, "insulin_models_plot.png"))
 
 
 # ----- Plot carb models -------
@@ -54,4 +59,4 @@ plt.title(
     )
 )
 plt.legend()
-plt.savefig("../../reports/figures/carb_models_plot.png")
+plt.savefig(os.path.join(figures_path, "carb_models_plot.png"))

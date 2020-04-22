@@ -123,15 +123,17 @@ class CesconCarbModel(TreatmentModel):
             * np.heaviside(t - theta, 1)
         )
 
-        # TODO: return cob here as well since insulin does it and it's more efficient to while here
+        # TODO: return cob here as well since insulin does it (and it's more efficient to while here?)
         return c_t
 
 
 class LoopInsulinModel(TreatmentModel):
     def __init__(self):
+        super().__init__("Loop_vX.X")
         raise NotImplementedError
 
 
 class LoopCarbModel(TreatmentModel):
     def __init__(self):
+        super().__init__("Loop_vX.X")
         raise NotImplementedError
