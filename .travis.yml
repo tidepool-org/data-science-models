@@ -1,11 +1,8 @@
 language: python
 python:
-  - "3.4"
-  - "3.5"
   - "3.6"      # current default Python on Travis CI
   - "3.7"
   - "3.8"
-  - "nightly"  # nightly build
 before_install:
   - "export PYTHONPATH=$PYTHONPATH:$(pwd)"
 # command to install dependencies
