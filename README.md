@@ -1,5 +1,6 @@
 # Tidepool Data Science Modeling
 
+[![Build Status](https://travis-ci.com/tidepool-org/data-science-model-tools.svg?branch=master)](https://travis-ci.com/tidepool-org/data-science-model-tools)
 
 # Metabolism Modeling
 
