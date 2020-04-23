@@ -163,6 +163,3 @@ def get_steady_state_iob_from_sbr(sbr):
 
     """
     return sbr * STEADY_STATE_IOB_FACTOR_FDA
-
-
-get_iob_from_sbr(1.0)
