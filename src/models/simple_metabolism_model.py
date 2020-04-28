@@ -4,7 +4,7 @@ This file houses everything related to the insulin and carb modeling math.
 
 import numpy as np
 
-from src.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
+from src.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA
 from src.models.treatment_models import PalermInsulinModel, CesconCarbModel
 
 
@@ -21,7 +21,21 @@ class SimpleMetabolismModel(object):
         insulin_model_name="palerm",
         carb_model_name="cescon",
     ):
+        """
+        Parameters
+        ----------
+        insulin_sensitivity_factor: float
+            How many mg/dL are reduced by 1 unit of insulin, units: mg/dL / U
 
+        carb_insulin_ratio: float
+            How many g carbs are offset by 1 unit of insulin, units: g / mg/dL
+
+        insulin_model_name: str
+            Name of the insulin model to use
+
+        carb_model_name: str
+            Name of the carb model to use
+        """
         self._cir = carb_insulin_ratio
         self._isf = insulin_sensitivity_factor
 
@@ -41,7 +55,7 @@ class SimpleMetabolismModel(object):
         else:
             raise ValueError("{} not a recognized carb model.".format(carb_model_name))
 
-    def run(self, carb_amount, insulin_amount=np.nan, num_hours=8):
+    def run(self, carb_amount, insulin_amount=np.nan, num_hours=8, five_min=True):
         """
         Compute a num_hours long, 5-min interval time series metabolic response to insulin and carbs inputs
         at t0. Carbs and insulin can be either zero or non-zero.
@@ -53,11 +67,23 @@ class SimpleMetabolismModel(object):
         ----------
         carb_amount: float
             Amount of carbs
-        insulin_amount
+
+        insulin_amount: float
+            Amount of insulin, if not given is calculated based on carb_amount
+
+        num_hours: float
+            Number of hours to run the simulation past t0
+
+        five_min: bool
+            Where to use 5 minute subsampling, if False default is 1 minute
 
         Returns
         -------
-
+        (np.array, np.array, float, np.array)
+            combined_delta_bg - The delta bg as a result of input insulin and carbs
+            t_min - time series that matches the simulation outputs
+            insulin_amount - Input insulin or insulin computed from carbs if np.nan is passed in
+            iob - The insulin on board
         """
         if num_hours < 0:
             raise ValueError("Number of hours for simulation can't be negative.")
@@ -65,48 +91,45 @@ class SimpleMetabolismModel(object):
         if num_hours > 24:
             raise ValueError("Number of hours for simulation can't be more than 24.")
 
-        # create a time series
-        t = get_timeseries(num_hours, five_min=False)
-        t_5min = get_timeseries(num_hours, five_min=True)
+        if carb_amount <= 0 and insulin_amount <= 0:
+            raise ValueError("Insulin or carbs must be greater than zero.")
 
         # if insulin amount is not given,
         # calculate carb amount like a bolus calculator
         if np.isnan(insulin_amount):
             insulin_amount = carb_amount / self._cir  # insulin amount
 
+        sim_data_len = num_hours * MINUTES_PER_HOUR
+        if five_min:
+            sim_data_len = int(sim_data_len / 5)
+
+        # Init arrays to return
+        combined_delta_bg = np.zeros(sim_data_len)
+        iob = np.zeros(sim_data_len)
+
         # insulin model
-        if insulin_amount != 0:
-
-            # model constants
-            i_t, iob_t = self.insulin_model.run(t, insulin_amount=insulin_amount)
-
-            ie_5min = i_t[t_5min]
-            iob_5min = iob_t[t_5min]
-            decrease_due_to_insulin = np.append(0, ie_5min[1:] - ie_5min[:-1])
-
-        else:
-            decrease_due_to_insulin = np.zeros(len(t_5min))
-            iob_5min = np.zeros(len(t_5min))
+        if insulin_amount > 0:
+            t_min, bg_delta_insulin, bg, iob = self.insulin_model.run(
+                num_hours, insulin_amount=insulin_amount, five_min=five_min
+            )
+            combined_delta_bg += bg_delta_insulin
 
         # carb model
         if carb_amount > 0:
-
-            c_t = self.carb_model.run(t, carb_amount=carb_amount)
-            ce_5min = c_t[t_5min]
-            increase_due_to_carbs = np.append(0, ce_5min[1:] - ce_5min[:-1])
-
-        else:
-            increase_due_to_carbs = np.zeros(len(t_5min))
-
-        net_change_in_bg = decrease_due_to_insulin + increase_due_to_carbs
+            t_min, bg_delta_carb, bg = self.carb_model.run(
+                num_hours, carb_amount=carb_amount, five_min=five_min
+            )
+            combined_delta_bg += bg_delta_carb
 
         # +CS - Why are we returning the carb and insulin amt?
-        return net_change_in_bg, t_5min, carb_amount, insulin_amount, iob_5min
+        return combined_delta_bg, t_min, insulin_amount, iob
 
     def get_iob_from_sbr(self, sbr_actual):
         """
-        Compute insulin on board every 5 minutes for 8 hours following the initial condition
-        being insulin on board from the scheduled basal rate for 8 hours.
+        Compute insulin on board due to the assumption that the schedule basal rate (sbr)
+        has been active for at least N_pre hours (8 hours here) prior to the start of the simulation.
+        The effect of the insulin due to the sbr prior to the start of the simulation results in
+        an initial amount of insulin on board every 5 minutes over the following N_post hours (8 hours again).
 
         Parameters
         ----------
@@ -124,9 +147,6 @@ class SimpleMetabolismModel(object):
         np.array
             The insulin on board every five munutes for 8 hours
         """
-        # Cameron added explanation since it was unclear what was going on until I stared
-        # at it for a while. Ed, please edit if these aren't correct.
-
         # Step 1: Get 8 hr iob from a bolus that is 1/12 of the scheduled basal rate.
         #         This assumes basal rate is a series of boluses at 5 min intervals.
         # TODO: optionally expose these as arguments to support other pumps or insulin curves (e.g. might need more
@@ -135,22 +155,22 @@ class SimpleMetabolismModel(object):
         num_hours_post_t0 = 8
         minutes_per_pump_pulse = 5
 
-        # E.g. 1 pulse every 5 minutes: pulses/hr = 60 min/hr / 5 min/pulse
+        # E.g. 1 pulse every 5 minutes: 12 pulses/hr = 60 min/hr / 5 min/pulse
         num_basal_pulses_per_hour = int(MINUTES_PER_HOUR / minutes_per_pump_pulse)
 
-        # TODO: CS - this is unrealistic pump behavior since pumps deliver in increments of U/pulse
+        # NOTE: This is unrealistic pump behavior since pumps deliver in increments of U/pulse,
+        #       but in the steady state case it has an insignificant effect on the result.
         basal_amount_per_5min = (
             sbr_actual / num_basal_pulses_per_hour
         )  # U/pulse = U/hr / pulse/hr
 
-        t = get_timeseries(num_hours=num_hours_pre_t0, five_min=False)
-        t_5min = get_timeseries(num_hours=num_hours_pre_t0, five_min=True)
-        i_t, iob_t = self.insulin_model.run(t, insulin_amount=basal_amount_per_5min)
-        iob_t5min = iob_t[t_5min]
+        t, delta_bg_t, bg_t, iob_t = self.insulin_model.run(
+            num_hours_pre_t0, insulin_amount=basal_amount_per_5min, five_min=True
+        )
 
         # Step 2: Add hours post t0 to simulation
         iob_with_zeros = np.append(
-            iob_t5min, np.zeros(num_hours_post_t0 * num_basal_pulses_per_hour)
+            iob_t, np.zeros(num_hours_post_t0 * num_basal_pulses_per_hour)
         )
 
         # Step 3: Copy the activity curves across the whole matrix
@@ -163,14 +183,18 @@ class SimpleMetabolismModel(object):
         for t_pre in np.arange(1, ncols):
             iob_matrix[:, t_pre] = np.roll(iob_matrix[:, t_pre], t_pre)
 
-        # Step 5: Fill the upper triangle with zeros
-        #         FIXME: CS - is this necessary? My numpy roll() above seems have zeros already
-        iob_matrix_tri = iob_matrix * np.tri(nrows, ncols, 0)
+        # TODO: In theory we shouldn't need this, but until this function is well tested
+        #       with different values of num_hours_pre_t0 and num_hours_post_t0 leaving it as
+        #       a safeguard.
+        if iob_matrix[0, -1] != 0.0:
+            raise ValueError(
+                "Algorithm expects zeros in the upper right triangle. Please review."
+            )
 
-        # Step 6: Sum across the curves to get the iob at every time step
-        iob_sbr_t = np.sum(iob_matrix_tri, axis=1)
+        # Step 5: Sum across the curves to get the iob at every time step
+        iob_sbr_t = np.sum(iob_matrix, axis=1)
 
-        # Step 7: Just get the last 8 hours
+        # Step 6: Just get the last 8 hours
         slice_index = int(
             (num_hours_post_t0 * MINUTES_PER_HOUR / minutes_per_pump_pulse) - 1
         )
