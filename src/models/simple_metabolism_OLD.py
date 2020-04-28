@@ -138,11 +138,14 @@ def get_iob_from_sbr(sbr_actual):
     for t_pre in np.arange(1, ncols):
         iob_matrix[:, t_pre] = np.roll(iob_matrix[:, t_pre], t_pre)
 
-    # Step 5: Fill the upper triangle with zeros - CS - is this necessary?
-    iob_matrix_tri = iob_matrix * np.tri(nrows, ncols, 0)
+    # Step 5: Fill the upper triangle with zeros
+    # NOTE 2020-04-28: Cameron commented this out since he and Ed
+    #                  determined it isn't necessary in this algo version. Now
+    #                  the refactored code matches this exactly for testing.
+    # iob_matrix_tri = iob_matrix * np.tri(nrows, ncols, 0)
 
     # Step 6: Sum across the curves to get the iob at every time step
-    iob_sbr_t = np.sum(iob_matrix_tri, axis=1)
+    iob_sbr_t = np.sum(iob_matrix, axis=1)
 
     # Step 7: Just get the last 8 hours
     iob_sbr_t = iob_sbr_t[95:-1]
