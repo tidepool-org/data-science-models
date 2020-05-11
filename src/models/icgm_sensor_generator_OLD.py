@@ -20,24 +20,26 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import brute, fmin
 
-from scipy.stats import johnsonsu
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.offline import plot
-import icgm_sensor_functions_OLD as sf
+import src.models.icgm_sensor_functions_OLD as sf
 
 
 # %% Functions
 def icgm_simulator(
-    SPECIAL_CONTROLS_CRITERIA_THRESHOLDS=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],  # A  # B  # C  # D  # E  # F  # G
-    n_sensors=30,
+    SPECIAL_CONTROLS_CRITERIA_THRESHOLDS=[
+        0.85,
+        0.70,
+        0.80,
+        0.98,
+        0.99,
+        0.99,
+        0.87,
+    ],  # This is required only for iCGM sensors for now (A-G)
+    n_sensors=3,
     use_g6_accuracy_in_loss=False,
     bias_type="percentage_of_value",
     bias_drift_type="random",
     random_seed=0,
     verbose=False,
-    save_results=False,
-    make_figures=False,
     true_bg_trace=[],
     true_dataset_name="default",
 ):
@@ -58,6 +60,8 @@ def icgm_simulator(
     )
 
     # STEP 1 STARTING TRUE TRACE
+    # Default behavior of a sensor generating function should fail if no data is given
+    # Explicitly call outside of this function to create a dataset if that's what we want
     if len(true_bg_trace) == 0:
         print("NO BG TRACE GIVEN! \n Creating 48 hour sinusoid dataset.")
         true_dataset_name = "48hours-sinusoid"
@@ -116,66 +120,6 @@ def icgm_simulator(
     # GET SENSOR METAPARAMETERS
     dist_params = sensor_results[0]
 
-    # HARDCODED METAPARAMETERS TO FIT METABOLIC SIMULATOR
-    # ORANGE 100 24-hour seed 2020-04-03
-    #    dist_params = [
-    #        0.453367301,  # a
-    #        22.7526517,  # b
-    #        5.94849642,  # mu
-    #        32.4910887,  # sigma
-    #        8.91309338,  # noise_coefficient
-    #        0.951195936,  # bias_drift_range_min
-    #        1.01342805,  # bias_drift_range_max
-    #        -0.00135629247   # bias_drift_oscillations
-    #    ]
-
-    # BLUE-100 - High accuracy, based on 8-hour simulation data
-    #    dist_params = [
-    #        0.7777797779024997,  # a
-    #        16.000366070969612,  # b
-    #        3.994903813972459,  # mu
-    #        49.507627726706794,  # sigma
-    #        8.540940003169371,  # noise_coefficient
-    #        1.0340191859896493,  # bias_drift_range_min
-    #        1.0078798143881644,  # bias_drift_range_max
-    #        -0.00026210704069611394   # bias_drift_oscillations
-    #    ]
-
-    # ORANGE-100 - Low accuracy, based on 10-day seed data
-    #    dist_params = [
-    #        0.7499006738942093,  # a
-    #        23.180403009646206,  # b
-    #        4.263250748156536,  # mu
-    #        44.66613582316239,  # sigma
-    #        2.447144587339765,  # noise_coefficient
-    #        0.8409223049247742,  # bias_drift_range_min
-    #        1.0741877708314456,  # bias_drift_range_max
-    #        0.8899017649283527   # bias_drift_oscillations
-    #    ]
-
-    # ORANGE-30 - Low accuracy, based on 10-day seed data
-    #    dist_params = [
-    #        0.545875,  # a
-    #        20.637930,  # b
-    #        4.233619,  # mu
-    #        92.405443,  # sigma
-    #        3.180765,  # noise_coefficient
-    #        1.0073474196487227,  # bias_drift_range_min
-    #        1.0371552026227717,  # bias_drift_range_max
-    #        0.0007532920030378398   # bias_drift_oscillations
-    #    ]
-
-    # BLUE-30 High accuracy, based on 8-hour simulation data
-    #    dist_params = [
-    #        0.59012889,  # a
-    #        22.73508938,  # b
-    #        2.93902946,  # mu
-    #        51.16303496,  # sigma
-    #        2.380271112074799,  # noise_coefficient
-    #        1.0073474196487227,  # bias_drift_range_min
-    #        1.0371552026227717,  # bias_drift_range_max
-    #        0.0007532920030378398   # bias_drift_oscillations
-    #    ]
     (
         a,
         b,
@@ -187,46 +131,6 @@ def icgm_simulator(
         bias_drift_oscillations,
     ) = dist_params
     bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
-
-    # loss = sensor_results[1]
-    # iteration_parameters = sensor_results[2]
-    # iteration_loss_scores = sensor_results[3]
-
-    # capture the results of all of the brute force runs
-    # iteration_results = pd.DataFrame(
-    #     iteration_loss_scores.reshape([-1, 1]), columns=["loss"]
-    # )
-    # iteration_results["a"] = \
-    #     iteration_parameters[0, :, :, :, :].reshape([-1, 1])
-    # iteration_results["b"] = \
-    #     iteration_parameters[1, :, :, :, :].reshape([-1, 1])
-    # iteration_results["mu"] = \
-    #     iteration_parameters[2, :, :, :, :].reshape([-1, 1])
-    # iteration_results["sigma"] = (
-    #     iteration_parameters[3, :, :, :, :].reshape([-1, 1])
-    # )
-    # iteration_results["noise_coefficient"] = (
-    #     iteration_parameters[4, :, :, :, :].reshape([-1, 1])
-    # )
-    # iteration_results["bias_drift_range_min"] = (
-    #     iteration_parameters[5, :, :, :, :].reshape([-1, 1])
-    # )
-    # iteration_results["bias_drift_range_max"] = (
-    #     iteration_parameters[6, :, :, :, :].reshape([-1, 1])
-    # )
-    # iteration_results["bias_drift_oscillations"] = (
-    #     iteration_parameters[7, :, :, :, :].reshape([-1, 1])
-    # )
-
-    # print("done\nthe sensor has the following distribution parameters:")
-    # print("a={}, b={}, mu={}, sigma={}".format(
-    #         np.round(dist_params[0], 1),
-    #         np.round(dist_params[1], 1),
-    #         np.round(dist_params[2], 1),
-    #         np.round(dist_params[3], 1)
-    # ))
-    # print("the overall loss score was {}".format(np.round(loss, 4)))
-    # print("a score close to 0 and less than 1 is good")
 
     # STEP 3 apply the results
     icgm_traces, individual_sensor_properties = sf.generate_icgm_sensors(
@@ -241,22 +145,6 @@ def icgm_simulator(
         delay=delay,
         random_seed=random_seed,
     )
-
-    # this part is used in iCGM
-    # for sensor_number in np.arange(0, n_sensors):
-    #     sensor_values = individual_sensor_properties.loc[sensor_number, :].values[0]
-    #     true_value_at_time_t = sf.get_icgm_value(
-    #         true_bg_value=true_bg_trace[0],
-    #         at_time=0,
-    #         random_seed=np.int(sensor_values[8]),
-    #         initial_bias=sensor_values[0],
-    #         phi_drift=sensor_values[1],
-    #         bias_drift_range=[sensor_values[2], sensor_values[3]],
-    #         bias_drift_oscillations=sensor_values[4],
-    #         bias_norm_factor=sensor_values[5],
-    #         noise_coefficient=sensor_values[6],
-    #     )
-    # print(true_value_at_time_t, true_bg_trace[0])
 
     # using new (refactored) metrics
     df = sf.preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
@@ -338,29 +226,10 @@ def icgm_simulator(
         sort=False,
     )
 
-    # loss_score = np.round(loss_score, 2)
-    # percent_pass = np.round(percent_pass)
-    # snr_db = np.round(overall_metrics_table.loc["SNR", "icgmSensorResults"])
-    # mard = np.round(overall_metrics_table.loc["MARD", "icgmSensorResults"], 2)
-    # mbe = np.round(overall_metrics_table.loc["MBE", "icgmSensorResults"], 2)
-
-    # file_name = (
-    #     "{}-sensors-generated-on-{}".format(n_sensors, datetime.datetime.now().strftime("%d-%m-%Y-%H-%M-%S"))
-    #     + "-from={}".format(true_dataset_name)
-    #     + "-seed={}".format(random_seed)
-    #     + "-G6={}".format(use_g6_accuracy_in_loss)
-    #     + "-meet-icgm={}".format(percent_pass)
-    #     + "-LOSS={}".format(loss_score)
-    #     + "-MARD={}".format(mard)
-    #     + "-MBE={}".format(mbe)
-    #     + "-SNR={}".format(snr_db)
-    #     + "-lag={}".format(delay)
-    # )
-
-    batch_icgm_results = results_df[~results_df.index.duplicated(keep="first")]
+    batch_sensor_properties = results_df[~results_df.index.duplicated(keep="first")]
     sc_letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"]
-    batch_icgm_results.drop(index=sc_letters, inplace=True)
-    batch_icgm_results.drop(columns=["dexG6"], inplace=True)
+    batch_sensor_properties.drop(index=sc_letters, inplace=True)
+    batch_sensor_properties.drop(columns=["dexG6"], inplace=True)
 
     batch_sc_table = icgm_special_controls_table
 
@@ -369,143 +238,6 @@ def icgm_simulator(
 
     batch_sc_results = pd.DataFrame(batch_sc_table["icgmSensorResults"].T.add_suffix("_results"))
 
-    batch_icgm_results = pd.concat([batch_icgm_results, batch_sc_npairs, batch_sc_results])
+    batch_sensor_properties = pd.concat([batch_sensor_properties, batch_sc_npairs, batch_sc_results])
 
-    return icgm_traces, individual_sensor_properties, batch_icgm_results
-
-
-def make_plotly_figures(figure_metadata):
-    """Makes two plotly figures: one of the johnson distribution and another
-    for the true BG + iCGM traces
-    """
-
-    # TODO: Properly parse out the needed figure metadata
-    (
-        a,
-        b,
-        mu,
-        sigma,
-        loss_score,
-        percent_pass,
-        n_sensors,
-        noise_coefficient,
-        bias_drift_range,
-        bias_drift_oscillations,
-        overall_metrics_table,
-        icgm_traces,
-        true_bg_trace,
-        SPECIAL_CONTROLS_CRITERIA_THRESHOLDS,
-        bias_type,
-        bias_drift_type,
-    ) = figure_metadata
-
-    # here is the cumulative distribtuion
-    x = np.arange(-60, 61, 1)
-    # cdf = johnsonsu.cdf(x, a=a, b=b, loc=mu, scale=sigma) * 100
-
-    # title = (
-    #     "Cumulative Distribution that Describes Sensor Performance<br>"
-    #     + "Johnson SU Dist with a={}, b={}, mu={}, sigma={}".format(
-    #         np.round(a, 1),
-    #         np.round(b, 2),
-    #         np.round(mu, 1),
-    #         np.round(sigma, 1),
-    #     )
-    # )
-
-    # cdf_fig = px.line(x=x, y=cdf, title=title)
-    # cdf_fig.update_layout(
-    #     xaxis_title_text='Starting Bias Error (mg/dL)',
-    #     yaxis_title_text='Percent of Values Below (%)',
-    #     xaxis_showgrid=True,
-    #     xaxis_zeroline=False,
-    #     yaxis_zeroline=False,
-    # )
-
-    # cdf_fig.update_xaxes(tickvals=[-50, -40, -20, -15, 0, 15, 20, 40, 50])
-    # cdf_fig.update_yaxes(tickvals=[1, 5, 10, 25, 50, 75, 90, 95, 99])
-    # plot(cdf_fig)
-
-    # plot the pdf
-    title = (
-        "Probability Density Function that Describes Sensor Performance<br>"
-        + "Johnson SU Dist with a={}, b={}, mu={}, sigma={}".format(
-            np.round(a, 1), np.round(b, 2), np.round(mu, 1), np.round(sigma, 1),
-        )
-    )
-
-    pdf = johnsonsu.pdf(x, a=a, b=b, loc=mu, scale=sigma)
-
-    pdf_df = pd.DataFrame([x, pdf]).T
-    pdf_df.columns = ["x", "pdf"]
-
-    pdf_fig = px.line(pdf_df, x="x", y="pdf", title=title)
-    pdf_fig.update_layout(
-        xaxis_title_text="Starting Bias Error (mg/dL)",
-        yaxis_title_text="Probability Density",
-        xaxis_showgrid=True,
-        xaxis_zeroline=False,
-        yaxis_zeroline=False,
-    )
-
-    pdf_fig.update_xaxes(tickvals=[-50, -40, -20, -15, 0, 15, 20, 40, 50])
-    plot(pdf_fig)
-
-    # plot the traces
-    loss_score = np.round(loss_score, 3)
-    percent_pass = np.round(percent_pass)
-    snr_db = np.round(overall_metrics_table.loc["SNR", "icgmSensorResults"])
-    mard = np.round(overall_metrics_table.loc["MARD", "icgmSensorResults"], 2)
-    mbe = np.round(overall_metrics_table.loc["MBE", "icgmSensorResults"], 2)
-
-    title = (
-        "{} sensors generated that meet {}% of iCGM Special Controls:".format(n_sensors, percent_pass)
-        + "<br>Criterion A-G = {} ".format(SPECIAL_CONTROLS_CRITERIA_THRESHOLDS)
-        + "<br>NOISE={}, ".format(np.round(noise_coefficient, 1))
-        + "BIAS Type={}, ".format(bias_type)
-        + "Drift={}, Drift Range={}, Oscillations={}, ".format(
-            bias_drift_type, np.round(bias_drift_range, 2), np.round(bias_drift_oscillations, 4)
-        )
-        + "<br>Aggregate Sensor Performance: "
-        + "MARD={}, MBE={}, SNR={}, Loss Score={}".format(mard, mbe, snr_db, loss_score)
-    )
-
-    true_trace = go.Scattergl(
-        name="true bg",
-        x=np.arange(0, len(true_bg_trace) * 5, 5),
-        y=true_bg_trace,
-        hoverinfo="y+name+x",
-        mode="markers+lines",
-        marker=dict(size=2, color="blue"),
-    )
-
-    bg_axis = dict(
-        tickvals=[0, 40, 54, 70, 140, 180, 250, 400],
-        fixedrange=True,
-        hoverformat=".0f",
-        zeroline=False,
-        showgrid=True,
-        gridcolor="#c0c0c0",
-        title=dict(text="Blood Glucose<br>(mg/dL)", font=dict(size=12)),
-    )
-
-    layout = go.Layout(title=title, showlegend=True, plot_bgcolor="white", yaxis=bg_axis, dragmode="pan", hovermode="x")
-
-    fig = go.Figure(data=[true_trace], layout=layout)
-
-    for n in range(0, n_sensors):
-        fig.add_trace(
-            go.Scattergl(
-                name="icgm_{}".format(n),
-                x=np.arange(0, len(true_bg_trace) * 5, 5),
-                y=icgm_traces[n, :],
-                hoverinfo="skip",
-                mode="lines",
-                opacity=0.75,
-                line=dict(color="orange", width=1),
-            )
-        )
-
-    plot(fig)
-
-    return
+    return icgm_traces, individual_sensor_properties, batch_sensor_properties
