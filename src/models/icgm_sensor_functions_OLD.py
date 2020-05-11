@@ -203,6 +203,7 @@ def generate_icgm_sensors(
     # 1. so that all of the parameters to simulate iCGM are in one location
     # 2. for future versions of iCGM sensor simulator that allows individual
     # sensors to have variable, noise, bias_drift_oscillations, delay, etc.
+    ind_sensor_properties["bias_drift_type"] = bias_drift_type
     ind_sensor_properties["bias_drift_range_start"] = bias_drift_range[0]
     ind_sensor_properties["bias_drift_range_end"] = bias_drift_range[1]
     ind_sensor_properties["bias_drift_oscillations"] = bias_drift_oscillations
@@ -323,7 +324,7 @@ def upper_onesided_95p_CB_norm_dist(value):
 
 
 def johnsonsu_icgm_sensor(
-    x,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations]
+    dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations]
     true_bg_trace,
     icgm_special_controls=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],
     n_sensors=100,
@@ -336,8 +337,8 @@ def johnsonsu_icgm_sensor(
 ):
 
     # skip distributions that are unrealistic
-    dist_min = johnsonsu.ppf(0.0001, a=x[0], b=x[1], loc=x[2], scale=x[3])
-    dist_max = johnsonsu.ppf(0.9999, a=x[0], b=x[1], loc=x[2], scale=x[3])
+    dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
 
     dist_range = np.nan
     if not np.isinf(dist_min):
@@ -357,13 +358,13 @@ def johnsonsu_icgm_sensor(
 
         icgm_traces, _ = generate_icgm_sensors(
             true_bg_trace,
-            dist_params=x[:4],
+            dist_params=dist_params[:4],
             n_sensors=n_sensors,
             bias_type=bias_type,
             bias_drift_type=bias_drift_type,
-            bias_drift_range=x[5:7],
-            bias_drift_oscillations=x[7],
-            noise_coefficient=x[4],
+            bias_drift_range=dist_params[5:7],
+            bias_drift_oscillations=dist_params[7],
+            noise_coefficient=dist_params[4],
             delay=delay,
             random_seed=random_seed,
         )
@@ -382,7 +383,7 @@ def johnsonsu_icgm_sensor(
         loss, percent_pass = calc_icgm_special_controls_loss(acc_results, g6_loss)
 
         if verbose:
-            print("johnsonsu paramters: {}".format(x))
+            print("johnsonsu paramters: {}".format(dist_params))
             print("loss=", loss)
             print("percent pass=", percent_pass)
             print("accuray results=", acc_results)
