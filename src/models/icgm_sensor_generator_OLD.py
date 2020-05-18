@@ -24,7 +24,7 @@ import src.models.icgm_sensor_functions_OLD as sf
 
 
 # %% Functions
-def icgm_simulator(
+def icgm_simulator_old(
     SPECIAL_CONTROLS_CRITERIA_THRESHOLDS=[
         0.85,
         0.70,

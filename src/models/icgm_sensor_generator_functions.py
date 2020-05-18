@@ -1409,3 +1409,175 @@ def dict_inputs_to_dataframes(input_data):
         df_settings,
         df_target_range,
     )
+
+
+def calculate_individual_sensor_special_controls_results(
+    generator, preprocessed_data, icgm_special_controls_table, g6_loss
+):
+    # Get individual sensor special controls results
+    trace_len = len(generator.true_bg_trace)
+    sensor_n_pairs = []
+    sensor_icgm_sensor_results = []
+    sensor_metrics = []
+    for i in range(generator.n_sensors):
+        ind_sensor_df = preprocessed_data.iloc[trace_len * i : trace_len * (i + 1)]
+        ind_sensor_special_controls_table = calc_icgm_sc_table(ind_sensor_df, "generic")
+
+        loss_score, percent_pass = calc_icgm_special_controls_loss(ind_sensor_special_controls_table, g6_loss)
+
+        sensor_metrics_table = calc_overall_metrics(ind_sensor_df)
+        sensor_metrics_table.loc["ICGM_PASS%", "icgmSensorResults"] = percent_pass
+        sensor_metrics_table.loc["LOSS_SCORE", "icgmSensorResults"] = loss_score
+        # sensor_metrics_table
+        sensor_n_pairs.append(ind_sensor_special_controls_table["nPairs"].values)
+        sensor_icgm_sensor_results.append(ind_sensor_special_controls_table["icgmSensorResults"].values)
+        sensor_metrics.append(sensor_metrics_table.T)
+
+    sensor_n_pair_cols = icgm_special_controls_table.T.add_suffix("_nPairs").columns
+
+    sensor_results_cols = icgm_special_controls_table.T.add_suffix("_results").columns
+
+    sensor_n_pairs = pd.DataFrame(sensor_n_pairs, columns=sensor_n_pair_cols)
+    sensor_icgm_sensor_results = pd.DataFrame(sensor_icgm_sensor_results, columns=sensor_results_cols)
+    ind_sensor_metrics = pd.concat(sensor_metrics).reset_index(drop=True)
+    generator.individual_sensor_properties.reset_index(drop=True, inplace=True)
+
+    individual_sensor_properties = pd.concat(
+        [generator.individual_sensor_properties, ind_sensor_metrics, sensor_n_pairs, sensor_icgm_sensor_results], axis=1
+    )
+
+    return individual_sensor_properties
+
+
+def calculate_sensor_generator_tables(generator):
+    """Calculates the special controls results tables"""
+
+    # using new (refactored) metrics
+    preprocessed_data = preprocess_data(
+        generator.true_bg_trace, generator.icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900]
+    )
+
+    """ icgm special controls """
+    icgm_special_controls_table = calc_icgm_sc_table(preprocessed_data, "generic")
+
+    """ new loss function """
+    g6_loss, g6_table = calc_dexcom_loss(preprocessed_data, generator.n_sensors)
+    if not generator.use_g6_accuracy_in_loss:
+        g6_loss = np.nan
+
+    loss_score, percent_pass = calc_icgm_special_controls_loss(icgm_special_controls_table, g6_loss)
+
+    """ overall results """
+    overall_metrics_table = calc_overall_metrics(preprocessed_data)
+    overall_metrics_table.loc["ICGM_PASS%", "icgmSensorResults"] = percent_pass
+    overall_metrics_table.loc["LOSS_SCORE", "icgmSensorResults"] = loss_score
+
+    individual_sensor_properties = calculate_individual_sensor_special_controls_results(
+        generator, preprocessed_data, icgm_special_controls_table, g6_loss
+    )
+
+    dist_param_names = [
+        "a",
+        "b",
+        "mu",
+        "sigma",
+        "batch_noise_coefficient",
+        "bias_drift_range_min",
+        "bias_drift_range_max",
+        "batch_bias_drift_oscillations",
+    ]
+
+    dist_df = pd.DataFrame(generator.dist_params, columns=["icgmSensorResults"], index=dist_param_names)
+
+    dist_df.loc["bias_drift_type"] = generator.bias_drift_type
+
+    """ dexcom g6 accuracy metric (tables)"""
+    # gsc = sf.calc_icgm_sc_table(df, "g6")
+    # g1a = sf.calc_g6_table1A(df, n_sensors)
+    # g1b = sf.calc_g6_table1BF(df, n_sensors, "B")
+    # g1f = sf.calc_g6_table1BF(df, "F")
+    # g3a = sf.calc_g6_table3AC(df, n_sensors, "A")
+    # g3c = sf.calc_g6_table3AC(df, "C")
+    # g4 = sf.calc_g6_table4(df, n_sensors)
+    # g6 = sf.calc_g6_table6(df, n_sensors)
+
+    input_settings_table = capture_settings(
+        generator.sensor_batch_size,
+        generator.use_g6_accuracy_in_loss,
+        generator.bias_type,
+        generator.bias_drift_type,
+        generator.delay,
+        generator.random_seed,
+    )
+
+    input_names = [
+        "TRUE.kind",
+        "TRUE.N",
+        "TRUE.min_value",
+        "TRUE.max_value",
+        "TRUE.time_interval",
+    ]
+
+    true_df_inputs = pd.DataFrame(
+        [
+            generator.true_dataset_name,
+            len(generator.true_bg_trace),
+            np.min(generator.true_bg_trace),
+            np.max(generator.true_bg_trace),
+            5,
+        ],
+        columns=["icgmSensorResults"],
+        index=input_names,
+    )
+
+    results_df = pd.concat(
+        [
+            input_settings_table,
+            true_df_inputs,
+            generator.search_range_inputs,
+            dist_df,
+            overall_metrics_table,
+            g6_table,
+        ],
+        sort=False,
+    )
+
+    batch_sensor_properties = results_df[~results_df.index.duplicated(keep="first")]
+    sc_letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"]
+    batch_sensor_properties.drop(index=sc_letters, inplace=True)
+    batch_sensor_properties.drop(columns=["dexG6"], inplace=True)
+
+    batch_sc_table = icgm_special_controls_table
+
+    batch_sc_npairs = pd.DataFrame(batch_sc_table["nPairs"].T.add_suffix("_nPairs"))
+    batch_sc_npairs.columns = ["icgmSensorResults"]
+
+    batch_sc_results = pd.DataFrame(batch_sc_table["icgmSensorResults"].T.add_suffix("_results"))
+
+    batch_sensor_properties = pd.concat([batch_sensor_properties, batch_sc_npairs, batch_sc_results])
+
+    return individual_sensor_properties, batch_sensor_properties
+
+
+def generate_test_bg_trace(true_dataset_name="48hours-sinusoid", random_seed=0, days_of_data=10):
+    """
+    Creates a sine wave as a test true_bg_trace dataset
+
+    Returns
+    -------
+    true_bg_trace : numpy float array
+        A test true_bg_trace
+    """
+    true_df, true_df_inputs = create_dataset(
+        kind="sine",
+        N=288 * days_of_data,
+        min_value=40,
+        max_value=400,
+        time_interval=5,
+        flat_value=np.nan,
+        oscillations=2,
+        random_seed=random_seed,
+    )
+    true_bg_trace = np.array(true_df["value"])
+
+    return true_bg_trace

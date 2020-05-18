@@ -36,34 +36,27 @@ class Sensor(object):
 class iCGMSensor(Sensor):
     """iCGM Sensor Object"""
 
-    def __init__(self, sensor_properties, is_sample_sensor=False):
+    def __init__(self, sensor_properties):
 
         super().__init__()
 
-        if is_sample_sensor:
-            self.initial_bias = 1.992889
-            self.phi_drift = 2.158842
-            self.bias_drift_range_start = 0.835931
-            self.bias_drift_range_end = 1.040707
-            self.bias_drift_oscillations = 1.041129
-            self.bias_norm_factor = 55.000000
-            self.noise_coefficient = 7.195753
-            self.delay = 10
-            self.random_seed = 0
-            self.bias_drift_type = "random"
-        else:
-            self.initial_bias = sensor_properties["initial_bias"].values[0]
-            self.phi_drift = sensor_properties["phi_drift"].values[0]
-            self.bias_drift_range_start = sensor_properties["bias_drift_range_start"].values[0]
-            self.bias_drift_range_end = sensor_properties["bias_drift_range_end"].values[0]
-            self.bias_drift_oscillations = sensor_properties["bias_drift_oscillations"].values[0]
-            self.bias_norm_factor = sensor_properties["bias_norm_factor"].values[0]
-            self.noise_coefficient = sensor_properties["noise_coefficient"].values[0]
-            self.delay = sensor_properties["delay"].values[0]
-            self.random_seed = sensor_properties["random_seed"].values[0]
-            self.bias_drift_type = sensor_properties["bias_drift_type"].values[0]
+        if sensor_properties is None:
+            raise Exception("No Sensor Properties Given")
 
-        self.is_sample_sensor = is_sample_sensor
+        self.initial_bias = sensor_properties["initial_bias"].values[0]
+        self.phi_drift = sensor_properties["phi_drift"].values[0]
+        self.bias_drift_range_start = sensor_properties["bias_drift_range_start"].values[0]
+        self.bias_drift_range_end = sensor_properties["bias_drift_range_end"].values[0]
+        self.bias_drift_oscillations = sensor_properties["bias_drift_oscillations"].values[0]
+        self.bias_norm_factor = sensor_properties["bias_norm_factor"].values[0]
+        self.noise_coefficient = sensor_properties["noise_coefficient"].values[0]
+        self.delay = sensor_properties["delay"].values[0]
+        self.random_seed = sensor_properties["random_seed"].values[0]
+        self.bias_drift_type = sensor_properties["bias_drift_type"].values[0]
+
+        self.calculate_sensor_bias_properties()
+
+    def calculate_sensor_bias_properties(self):
 
         # random seed for reproducibility
         np.random.seed(seed=self.random_seed)
@@ -218,9 +211,6 @@ class iCGMSensorGenerator(object):
         else:
             self.delay = 10
 
-        if true_bg_trace is None:
-            print("NO BG TRACE GIVEN! \n Creating 48 hour sinusoid dataset.")
-            self.true_bg_trace = self.generate_test_trace()
 
         self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range()
 
@@ -234,38 +224,20 @@ class iCGMSensorGenerator(object):
 
         return
 
-    def generate_test_trace(self):
-        """
-        Creates a 48-hour sine as a test true_bg_trace dataset
 
-        Returns
-        -------
-        true_bg_trace : numpy float array
-            A test true_bg_trace
-        """
-        self.true_dataset_name = "48hours-sinusoid"
-        true_df, true_df_inputs = sf.create_dataset(
-            kind="sine",
-            N=288 * 2,
-            min_value=40,
-            max_value=400,
-            time_interval=5,
-            flat_value=np.nan,
-            oscillations=2,
-            random_seed=self.random_seed,
-        )
-        true_bg_trace = np.array(true_df["value"])
-
-        return true_bg_trace
-
-    def fit(self):
+    def fit(self, true_bg_trace=None):
         """Creates the batch of iCGM sensors fit to a true_bg_trace using brute force"""
+
+        if true_bg_trace is None:
+            raise Exception("No true_bg_trace given")
+
+        self.true_bg_trace = true_bg_trace
 
         batch_sensor_brute_search_results = brute(
             sf.johnsonsu_icgm_sensor,
             self.johnson_parameter_search_range,
             args=(
-                self.true_bg_trace,
+                true_bg_trace,
                 self.sc_thresholds,
                 self.sensor_batch_size,
                 self.bias_type,
@@ -324,146 +296,4 @@ class iCGMSensorGenerator(object):
         self.n_sensors = n_sensors
         self.sensors = sensors  # Array of sensor objects
 
-        return
-
-    def calculate_result_tables(self):
-        """Calculates the special controls results tables"""
-
-        # using new (refactored) metrics
-        df = sf.preprocess_data(self.true_bg_trace, self.icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
-
-        """ icgm special controls """
-        icgm_special_controls_table = sf.calc_icgm_sc_table(df, "generic")
-
-        """ new loss function """
-        g6_loss, g6_table = sf.calc_dexcom_loss(df, self.n_sensors)
-        if not self.use_g6_accuracy_in_loss:
-            g6_loss = np.nan
-
-        loss_score, percent_pass = sf.calc_icgm_special_controls_loss(icgm_special_controls_table, g6_loss)
-
-        """ overall results """
-        overall_metrics_table = sf.calc_overall_metrics(df)
-        overall_metrics_table.loc["ICGM_PASS%", "icgmSensorResults"] = percent_pass
-        overall_metrics_table.loc["LOSS_SCORE", "icgmSensorResults"] = loss_score
-
-        # Get individual sensor special controls results
-        trace_len = len(self.true_bg_trace)
-        sensor_n_pairs = []
-        sensor_icgm_sensor_results = []
-        sensor_metrics = []
-        for i in range(self.n_sensors):
-            ind_sensor_df = df.iloc[trace_len * i : trace_len * (i + 1)]
-            ind_sensor_special_controls_table = sf.calc_icgm_sc_table(ind_sensor_df, "generic")
-
-            loss_score, percent_pass = sf.calc_icgm_special_controls_loss(ind_sensor_special_controls_table, g6_loss)
-
-            sensor_metrics_table = sf.calc_overall_metrics(ind_sensor_df)
-            sensor_metrics_table.loc["ICGM_PASS%", "icgmSensorResults"] = percent_pass
-            sensor_metrics_table.loc["LOSS_SCORE", "icgmSensorResults"] = loss_score
-            # sensor_metrics_table
-            sensor_n_pairs.append(ind_sensor_special_controls_table["nPairs"].values)
-            sensor_icgm_sensor_results.append(ind_sensor_special_controls_table["icgmSensorResults"].values)
-            sensor_metrics.append(sensor_metrics_table.T)
-
-        sensor_n_pair_cols = icgm_special_controls_table.T.add_suffix("_nPairs").columns
-
-        sensor_results_cols = icgm_special_controls_table.T.add_suffix("_results").columns
-
-        sensor_n_pairs = pd.DataFrame(sensor_n_pairs, columns=sensor_n_pair_cols)
-        sensor_icgm_sensor_results = pd.DataFrame(sensor_icgm_sensor_results, columns=sensor_results_cols)
-        ind_sensor_metrics = pd.concat(sensor_metrics).reset_index(drop=True)
-        self.individual_sensor_properties.reset_index(drop=True, inplace=True)
-
-        self.individual_sensor_properties = pd.concat(
-            [self.individual_sensor_properties, ind_sensor_metrics, sensor_n_pairs, sensor_icgm_sensor_results], axis=1
-        )
-
-        dist_param_names = [
-            "a",
-            "b",
-            "mu",
-            "sigma",
-            "batch_noise_coefficient",
-            "bias_drift_range_min",
-            "bias_drift_range_max",
-            "batch_bias_drift_oscillations",
-        ]
-
-        dist_df = pd.DataFrame(self.dist_params, columns=["icgmSensorResults"], index=dist_param_names)
-
-        dist_df.loc["bias_drift_type"] = self.bias_drift_type
-
-        """ dexcom g6 accuracy metric (tables)"""
-        # gsc = sf.calc_icgm_sc_table(df, "g6")
-        # g1a = sf.calc_g6_table1A(df, n_sensors)
-        # g1b = sf.calc_g6_table1BF(df, n_sensors, "B")
-        # g1f = sf.calc_g6_table1BF(df, "F")
-        # g3a = sf.calc_g6_table3AC(df, n_sensors, "A")
-        # g3c = sf.calc_g6_table3AC(df, "C")
-        # g4 = sf.calc_g6_table4(df, n_sensors)
-        # g6 = sf.calc_g6_table6(df, n_sensors)
-
-        input_settings_table = sf.capture_settings(
-            self.sensor_batch_size,
-            self.use_g6_accuracy_in_loss,
-            self.bias_type,
-            self.bias_drift_type,
-            self.delay,
-            self.random_seed,
-        )
-
-        input_names = [
-            "TRUE.kind",
-            "TRUE.N",
-            "TRUE.min_value",
-            "TRUE.max_value",
-            "TRUE.time_interval",
-        ]
-
-        true_df_inputs = pd.DataFrame(
-            [
-                self.true_dataset_name,
-                len(self.true_bg_trace),
-                np.min(self.true_bg_trace),
-                np.max(self.true_bg_trace),
-                5,
-            ],
-            columns=["icgmSensorResults"],
-            index=input_names,
-        )
-
-        results_df = pd.concat(
-            [input_settings_table, true_df_inputs, self.search_range_inputs, dist_df, overall_metrics_table, g6_table,],
-            sort=False,
-        )
-
-        batch_sensor_properties = results_df[~results_df.index.duplicated(keep="first")]
-        sc_letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"]
-        batch_sensor_properties.drop(index=sc_letters, inplace=True)
-        batch_sensor_properties.drop(columns=["dexG6"], inplace=True)
-
-        batch_sc_table = icgm_special_controls_table
-
-        batch_sc_npairs = pd.DataFrame(batch_sc_table["nPairs"].T.add_suffix("_nPairs"))
-        batch_sc_npairs.columns = ["icgmSensorResults"]
-
-        batch_sc_results = pd.DataFrame(batch_sc_table["icgmSensorResults"].T.add_suffix("_results"))
-
-        self.batch_sensor_properties = pd.concat([batch_sensor_properties, batch_sc_npairs, batch_sc_results])
-
-        return
-
-    def get_batch_results(self):
-        """
-        Gets the batch sensor generator results
-
-        Returns
-        -------
-        batch_results : tuple
-            The generated sensor icgm_traces and the individual & batch properties
-        """
-
-        batch_results = (self.icgm_traces, self.individual_sensor_properties, self.batch_sensor_properties)
-
-        return batch_results
+        return sensors
