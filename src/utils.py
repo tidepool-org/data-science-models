@@ -37,3 +37,39 @@ def get_timeseries(num_hours, five_min=False):
         t = np.arange(0, minutes_in_model, 1)  # in minutes
 
     return t
+
+
+def get_figure_filename(short_name, version, dataset_name="simulated", extension="png"):
+    """
+    Get filename according to Data Science governance agreed format:
+
+    <short-name>_<date>_<dataset-name>_<version>.<extension>
+
+    Parameters
+    ----------
+    short_name: str
+        Short description of the figure
+
+    version: str
+        Which version of code generated it
+
+    dataset_name: str
+        The data used in the figure
+
+    extension: str
+        The file extension
+
+    Returns
+    -------
+    str:
+        The figure name
+    """
+    return "{short_name}_{date}_{version}_{dataset_name}.{extension}".format(
+        **{
+            "short_name": short_name,
+            "date": datetime.datetime.now().strftime("%Y-%m-%d_%H:%M-%p"),
+            "version": version,
+            "dataset_name": dataset_name,
+            "extension": extension,
+        }
+    )
