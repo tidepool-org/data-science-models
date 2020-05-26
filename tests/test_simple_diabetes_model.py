@@ -29,8 +29,8 @@ def test_simple_metabolism_model():
 
     for insulin_amount in [1.0, 10.0]:
 
-        (net_change_in_bg, t_5min, carb_amount, insulin_amount, iob_5min,) = smm.run(
-            carb_amount=carb_amount, insulin_amount=insulin_amount,
+        (net_change_in_bg, t_5min, insulin_amount, iob_5min,) = smm.run(
+            carb_amount=carb_amount, insulin_amount=insulin_amount, five_min=True
         )
 
         assert iob_5min[-1] < (INSULIN_DECAY_8HR_EPSILON * insulin_amount)

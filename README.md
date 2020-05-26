@@ -53,14 +53,16 @@ smm = SimpleMetabolismModel(
 
 ## Available Models
 
-![Insulin Models](reports/figures/insulin_models_plot.png?raw=True)
-![Carb Models](reports/figures/carb_models_plot.png?raw=True)
+![Insulin Models](reports/figures/Insulin_Models_Plot_2020-04-24_12:10-PM_v0.1_Simulated.png?raw=True)
+![Carb Models](reports/figures/Carb_Models_Plot_2020-04-24_12:10-PM_v0.1_Simulated.png?raw=True)
 
 
 ## Team Members
 
 **[Ed Nykaza](https://github.com/ed-nykaza)**
+
 **[Cameron Summers](https://github.com/scaubrey)**
+
 **[Jason Meno](https://github.com/jameno)**
 
 

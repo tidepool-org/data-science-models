@@ -4,6 +4,8 @@ This file houses the various insulin and carb activity curve models
 
 import numpy as np
 
+from tidepool_data_science_models.utils import get_timeseries
+
 
 class TreatmentModel(object):
     """
@@ -50,33 +52,58 @@ class PalermInsulinModel(TreatmentModel):
         self._tau2 = kwargs.get("tau2", 70)
         self._Kcl = kwargs.get("kcl", 1)
 
-    def run(self, t, insulin_amount):
+    def run(self, num_hours, insulin_amount, five_min=True):
         """
+        Run the model for num hours assuming that the insulin amount
+        is given at t=0.
+
         Parameters
         ----------
-        t: np.array
-            The time input for computing the activity curve.
+        num_hours: float
+            How long to compute the effect
 
         insulin_amount: float
             The amount of insulin to use for running the model
+
+        five_min: bool
+            If true, run the model in increments of 5 minutes, otherwise
+            1 minute
+
+        Returns
+        -------
+        (np.array, np.array, np.array, np.array)
+            t: The time series in minutes
+            bg_delta: The change in bg for each time in t
+            bg: The bg for each time in t starting at 0
+            iob: The insulin on board for each time in t
         """
-        ISF = self._isf
+        t_min = get_timeseries(num_hours, five_min=False)
+
+        isf = self._isf
 
         tau1 = self._tau1
         tau2 = self._tau2
-        Kcl = self._Kcl
+        kcl = self._Kcl
 
-        insulin_equation = (
+        insulin = (
             insulin_amount
-            * (1 / (Kcl * (tau2 - tau1)))
-            * (np.exp(-t / tau2) - np.exp(-t / tau1))
+            * (1 / (kcl * (tau2 - tau1)))
+            * (np.exp(-t_min / tau2) - np.exp(-t_min / tau1))
         )
-        ia_t = np.cumsum(insulin_equation)
-        iob_t = insulin_amount - ia_t
 
-        i_t = -ISF * ia_t
+        insulin_cleared = np.cumsum(insulin)
+        iob = insulin_amount - insulin_cleared
+        bg = -1 * isf * insulin_cleared
 
-        return i_t, iob_t
+        # Optionally subsample
+        if five_min:
+            t_min = get_timeseries(num_hours, five_min=True)
+            bg = bg[t_min]
+            iob = iob[t_min]
+
+        bg_delta = np.append(0, bg[1:] - bg[:-1])
+
+        return t_min, bg_delta, bg, iob
 
 
 class CesconCarbModel(TreatmentModel):
@@ -103,28 +130,51 @@ class CesconCarbModel(TreatmentModel):
         self._theta = kwargs.get("theta", 20)
         self._Kcl = kwargs.get("kcl", 1)
 
-    def run(self, t, carb_amount):
+    def run(self, num_hours, carb_amount, five_min=True):
         """
+        Run the model for num hours assuming that the carb amount
+        is given at t=0.
+
         Parameters
         ----------
-        t: np.array
-            The time input for computing the activity curve.
+        num_hours: float
+            The amount of time in hours to compute the effect
 
         carb_amount: float
             The amount of carbs to use for running the model
+
+        five_min: bool
+            If true, run the model in increments of 5 minutes, otherwise
+            1 minute
+
+        Returns
+        -------
+        (np.array, np.array, np.array)
+            t: The time series in minutes
+            bg_delta: The change in bg for each time in t
+            bg: The bg for each time in t starting at 0
         """
-        K = self._isf / self._cir  # carb gain
+        t_min = get_timeseries(num_hours, five_min=False)
+
+        if five_min:
+            t_min = get_timeseries(num_hours, five_min=True)
+
+        K = self._isf / self._cir  # mg/dL / g = (mg/dL / U) / (g / U)
         tau = self._tau
         theta = self._theta
-        c_t = (
+
+        # mg/dL * min = (mg/dL / g) * g * min
+        bg = (
             K
             * carb_amount
-            * (1 - np.exp((theta - t) / tau))
-            * np.heaviside(t - theta, 1)
+            * (1 - np.exp((theta - t_min) / tau))
+            * np.heaviside(t_min - theta, 1)
         )
 
-        # TODO: return cob here as well since insulin does it (and it's more efficient to while here?)
-        return c_t
+        # mg/dL / min
+        bg_delta = np.append(0, bg[1:] - bg[:-1])
+
+        return t_min, bg_delta, bg
 
 
 class LoopInsulinModel(TreatmentModel):
