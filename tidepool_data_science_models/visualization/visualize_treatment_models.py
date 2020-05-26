@@ -8,8 +8,8 @@ import matplotlib.style as style
 style.use("seaborn-poster")  # sets the size of the charts
 style.use("ggplot")
 
-from data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel
-from data_science_models.utils import get_timeseries
+from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel
+from tidepool_data_science_models.utils import get_timeseries
 
 figures_path = os.path.join(os.getcwd(), "../../reports/figures")
 

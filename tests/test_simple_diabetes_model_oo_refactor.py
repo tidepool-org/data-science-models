@@ -4,13 +4,13 @@ Tests to confirm that Cameron's refactor of Ed's diabetes model code gives the s
 
 import numpy as np
 
-from data_science_models.models.simple_metabolism_model import SimpleMetabolismModel
-from data_science_models.models.simple_metabolism_OLD import (
+from tidepool_data_science_models.models.simple_metabolism_model import SimpleMetabolismModel
+from tidepool_data_science_models.models.simple_metabolism_OLD import (
     simple_metabolism_model,
     get_iob_from_sbr,
     get_steady_state_iob_from_sbr,
 )
-from data_science_models.utils import EPSILON_TEST
+from tidepool_data_science_models.utils import EPSILON_TEST
 
 
 def test_simple_metabolism_model_class():

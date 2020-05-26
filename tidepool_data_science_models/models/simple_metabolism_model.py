@@ -4,8 +4,8 @@ This file houses everything related to the insulin and carb modeling math.
 
 import numpy as np
 
-from data_science_models.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
-from data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel
+from tidepool_data_science_models.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
+from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel
 
 
 class SimpleMetabolismModel(object):
