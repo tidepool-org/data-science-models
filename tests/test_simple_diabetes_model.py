@@ -1,9 +1,9 @@
 """
 Testing the functionality of the simple diabetes model.
 """
-from src.models.simple_metabolism_model import SimpleMetabolismModel
+from data_science_models.models.simple_metabolism_model import SimpleMetabolismModel
 
-from src.utils import (
+from data_science_models.utils import (
     EPSILON_TEST,
     INSULIN_DECAY_8HR_EPSILON,
     STEADY_STATE_IOB_FACTOR_FDA,

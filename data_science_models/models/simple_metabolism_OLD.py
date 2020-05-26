@@ -6,7 +6,7 @@ These are the original functions for modeling insulin and carbs for the FDA loop
 
 import numpy as np
 
-from src.models.simple_metabolism_model import STEADY_STATE_IOB_FACTOR_FDA
+from data_science_models.models.simple_metabolism_model import STEADY_STATE_IOB_FACTOR_FDA
 
 
 def simple_metabolism_model(
