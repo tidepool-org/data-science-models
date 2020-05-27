@@ -91,7 +91,7 @@ class SimpleMetabolismModel(object):
         if num_hours > 24:
             raise ValueError("Number of hours for simulation can't be more than 24.")
 
-        if carb_amount <= 0 and insulin_amount <= 0:
+        if carb_amount <= 0 and insulin_amount != 0:  # Note: insulin can be negative
             raise ValueError("Insulin or carbs must be greater than zero.")
 
         # if insulin amount is not given,
