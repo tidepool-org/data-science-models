@@ -91,9 +91,9 @@ class SimpleMetabolismModel(object):
         if num_hours > 24:
             raise ValueError("Number of hours for simulation can't be more than 24.")
 
-        if carb_amount < 0:  # Note: insulin can be negative
+        if carb_amount < 0:
             raise ValueError("Carbs must be greater than zero.")
-        
+
         # if insulin amount is not given,
         # calculate carb amount like a bolus calculator
         if np.isnan(insulin_amount):
@@ -108,7 +108,7 @@ class SimpleMetabolismModel(object):
         iob = np.zeros(sim_data_len)
 
         # insulin model
-        if insulin_amount > 0:
+        if insulin_amount != 0: # Note: insulin can be negative
             t_min, bg_delta_insulin, bg, iob = self.insulin_model.run(
                 num_hours, insulin_amount=insulin_amount, five_min=five_min
             )
