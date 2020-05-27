@@ -24,13 +24,20 @@ class Sensor(object):
 
         return
 
-    def generate_value(self):
+    def get_bg(self):
 
         raise NotImplementedError
 
     def generate_trace(self):
 
         raise NotImplementedError
+
+    def get_state(self):
+        pass
+
+    def update(self, time):
+        # No state
+        pass
 
 
 class iCGMSensor(Sensor):
@@ -88,7 +95,7 @@ class iCGMSensor(Sensor):
 
         return
 
-    def generate_value(self, true_bg_value, at_time):
+    def get_bg(self, true_bg_value, at_time):
         """
         This function returns the iCGM value of a true_bg_value
 
