@@ -1,5 +1,3 @@
-import datetime
-
 import numpy as np
 
 # Some constants
@@ -75,6 +73,3 @@ def get_figure_filename(short_name, version, dataset_name="simulated", extension
             "extension": extension,
         }
     )
-
-
-print(get_figure_filename("sn", "v1"))

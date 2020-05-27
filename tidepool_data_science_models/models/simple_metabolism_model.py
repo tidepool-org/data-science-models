@@ -4,8 +4,8 @@ This file houses everything related to the insulin and carb modeling math.
 
 import numpy as np
 
-from src.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA
-from src.models.treatment_models import PalermInsulinModel, CesconCarbModel
+from tidepool_data_science_models.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
+from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel
 
 
 class SimpleMetabolismModel(object):
@@ -91,8 +91,8 @@ class SimpleMetabolismModel(object):
         if num_hours > 24:
             raise ValueError("Number of hours for simulation can't be more than 24.")
 
-        if carb_amount <= 0 and insulin_amount <= 0:
-            raise ValueError("Insulin or carbs must be greater than zero.")
+        if carb_amount < 0:
+            raise ValueError("Carbs must be greater than zero.")
 
         # if insulin amount is not given,
         # calculate carb amount like a bolus calculator
@@ -108,7 +108,7 @@ class SimpleMetabolismModel(object):
         iob = np.zeros(sim_data_len)
 
         # insulin model
-        if insulin_amount > 0:
+        if insulin_amount != 0: # Note: insulin can be negative
             t_min, bg_delta_insulin, bg, iob = self.insulin_model.run(
                 num_hours, insulin_amount=insulin_amount, five_min=five_min
             )
