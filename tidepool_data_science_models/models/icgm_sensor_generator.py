@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 import sys
 from scipy.optimize import brute, fmin
-import src.models.icgm_sensor_generator_functions as sf
+import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
 
 
 # %% Definitions
