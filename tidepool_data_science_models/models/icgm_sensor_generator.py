@@ -132,7 +132,8 @@ class iCGMSensor(Sensor):
 
         return icgm_value
 
-    def generate_trace(self, true_bg_trace, start_time=0):
+    def get_bg_trace(self, true_bg_trace, start_time=0):
+        # TODO: Update start time to go out from the start time -- start_time = self.time_index
         """
 
         Parameters
