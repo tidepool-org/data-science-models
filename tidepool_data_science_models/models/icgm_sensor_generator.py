@@ -47,6 +47,9 @@ class iCGMSensor(Sensor):
 
         super().__init__()
 
+        self.time_index = 0
+        self.sensor_life_days = 10
+
         if sensor_properties is None:
             raise Exception("No Sensor Properties Given")
 
@@ -62,6 +65,14 @@ class iCGMSensor(Sensor):
         self.bias_drift_type = sensor_properties["bias_drift_type"].values[0]
 
         self.calculate_sensor_bias_properties()
+
+    def update(self, time):
+        self.time_index += 1
+        if self.time_index > self.sensor_life_days * 288:
+            self.time_index = 0
+            # TODO: Raise exception when sensor expires
+        return
+
 
     def calculate_sensor_bias_properties(self):
 
@@ -95,7 +106,7 @@ class iCGMSensor(Sensor):
 
         return
 
-    def get_bg(self, true_bg_value, at_time):
+    def get_bg(self, true_bg_value):
         """
         This function returns the iCGM value of a true_bg_value
 
@@ -116,7 +127,7 @@ class iCGMSensor(Sensor):
             The generated iCGM value
 
         """
-
+        at_time = self.time_index
         icgm_value = ((true_bg_value * self.bias_factor) * self.drift_multiplier[at_time]) + self.noise[at_time]
 
         return icgm_value
