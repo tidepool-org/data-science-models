@@ -31,7 +31,7 @@ and put in this repo for easier use and testing.
 1. Clone this repo (for help see the github [tutorial](https://help.github.com/articles/cloning-a-repository/)).
 2. Import the model of interest and run. Example:
 ```
-from src.models.simple_metabolism_model import SimpleMetabolismModel
+from tidepool_data_science_models.models.simple_metabolism_model import SimpleMetabolismModel
 
 smm = SimpleMetabolismModel(
         insulin_sensitivity_factor=isf,

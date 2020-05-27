@@ -1,0 +1,9 @@
+name: tidepool-data-science-models
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - pip==20.0.2
+  - python=3.6
+  - pip:
+      - -r file:requirements.txt

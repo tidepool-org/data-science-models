@@ -1,6 +1,5 @@
-import datetime
-
 import numpy as np
+import datetime
 
 # Some constants
 STEADY_STATE_IOB_FACTOR_FDA = 2.111517
@@ -75,6 +74,3 @@ def get_figure_filename(short_name, version, dataset_name="simulated", extension
             "extension": extension,
         }
     )
-
-
-print(get_figure_filename("sn", "v1"))

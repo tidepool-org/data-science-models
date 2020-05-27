@@ -4,7 +4,7 @@ This file houses the various insulin and carb activity curve models
 
 import numpy as np
 
-from src.utils import get_timeseries
+from tidepool_data_science_models.utils import get_timeseries
 
 
 class TreatmentModel(object):
