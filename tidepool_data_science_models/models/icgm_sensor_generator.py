@@ -43,15 +43,32 @@ class Sensor(object):
 class iCGMSensor(Sensor):
     """iCGM Sensor Object"""
 
-    def __init__(self, sensor_properties):
+    def __init__(self, sensor_properties, sensor_life_days=10, sensor_time=0):
+        """
+
+        Parameters
+        ----------
+        sensor_properties : pandas DataFrame object
+            A set of sensor properties needed to initialize an iCGM Sensor
+        sensor_time : int
+            The internal time of the sensor, used for errors and drift over the sensor life.
+            (1 = 5 minutes, 2 = 10 minutes, etc)
+        sensor_life_days : int
+            The number of days the sensor will last.
+        """
 
         super().__init__()
 
-        self.time_index = 0
-        self.sensor_life_days = 10
-
         if sensor_properties is None:
             raise Exception("No Sensor Properties Given")
+
+        self.sensor_life_days = sensor_life_days
+        self.sensor_time = sensor_time
+
+        self.validate_sensor_time(self.sensor_time)
+
+        self.true_bg_history = []
+        self.sensor_bg_history = []
 
         self.initial_bias = sensor_properties["initial_bias"].values[0]
         self.phi_drift = sensor_properties["phi_drift"].values[0]
@@ -66,13 +83,21 @@ class iCGMSensor(Sensor):
 
         self.calculate_sensor_bias_properties()
 
-    def update(self, time):
-        self.time_index += 1
-        if self.time_index > self.sensor_life_days * 288:
-            self.time_index = 0
-            # TODO: Raise exception when sensor expires
-        return
+    def validate_sensor_time(self, time_index):
+        before_sensor_starts = time_index < 0
+        after_sensor_expires = time_index > (self.sensor_life_days * 288 - 1)
+        if before_sensor_starts or after_sensor_expires:
+            raise Exception("Sensor time_index {} outside of sensor life! ".format(str(time_index)))
 
+    def update(self, time):
+        next_sensor_time = self.sensor_time + 1
+        try:
+            self.validate_sensor_time(next_sensor_time)
+            self.sensor_time = next_sensor_time
+        except Exception as e:
+            error = str(e) + "Sensor has expired!"
+            raise Exception(error)
+        return
 
     def calculate_sensor_bias_properties(self):
 
@@ -106,20 +131,26 @@ class iCGMSensor(Sensor):
 
         return
 
-    def get_bg(self, true_bg_value):
-        """
-        This function returns the iCGM value of a true_bg_value
+    def append_bg_history(self, true_bg_value, icgm_value):
+        """Appends the true_bg_value and associated icgm_value to sensor history"""
+        self.true_bg_history.append(true_bg_value)
+        self.sensor_bg_history.append(icgm_value)
 
-        WARNING: This function does not take into account time delay.
-        If there is delay between the true BG and iCGM value, then pass in the true_bg_value from (at_time - delay).
+    def get_bg(self, true_bg_value, save_to_sensor=True, sensor_time_offset=0):
+        """
+        This function returns the iCGM value given a true_bg_value.
+
+        If the sensor has a delay, the true_bg_value is stored and the delayed value from true_bg_history is used.
 
         Parameters
         ----------
         true_bg_value : float
             The true blood glucose value (mg/dL)
-        at_time : int
-            The relative start time to the start of the sensor's drift and noise in 5-minute resolution
-            (1 = 5min, 2 = 10min, etc)
+        save_to_sensor : bool
+            Whether or not to save the true_bg and generated icgm_value to the sensor bg history
+        sensor_time_offset : int
+            The relative time offset from the current sensor_time (default of 0 uses the current sensor_time)
+            Used when calculating future or past values without altering the sensor_time.
 
         Returns
         -------
@@ -127,12 +158,31 @@ class iCGMSensor(Sensor):
             The generated iCGM value
 
         """
-        at_time = self.time_index
-        icgm_value = ((true_bg_value * self.bias_factor) * self.drift_multiplier[at_time]) + self.noise[at_time]
+
+        relative_sensor_time = self.sensor_time + sensor_time_offset
+        self.validate_sensor_time(relative_sensor_time)
+
+        # Get delayed true_bg
+        if self.delay > 0:
+            delay_index = self.delay // 5
+            if len(self.true_bg_history) >= delay_index:
+                delayed_true_bg = self.true_bg_history[-delay_index]
+            else:
+                delayed_true_bg = np.nan
+        else:
+            delayed_true_bg = true_bg_value
+
+        # Calculate value
+        drift_multiplier = self.drift_multiplier[relative_sensor_time]
+        noise = self.noise[relative_sensor_time]
+        icgm_value = (delayed_true_bg * self.bias_factor * drift_multiplier) + noise
+
+        if save_to_sensor:
+            self.append_bg_history(true_bg_value, icgm_value)
 
         return icgm_value
 
-    def get_bg_trace(self, true_bg_trace, start_time=0):
+    def get_bg_trace(self, true_bg_trace, save_to_sensor=False, sensor_time_offset=0):
         # TODO: Update start time to go out from the start time -- start_time = self.time_index
         """
 
@@ -140,25 +190,42 @@ class iCGMSensor(Sensor):
         ----------
         true_bg_trace : numpy float array
             The true blood glucose value trace (mg/dL)
-        start_time : int
-            The relative start time to the start of the sensor's drift and noise in 5-minute resolution
-            (1 = 5min, 2 = 10min, etc)
+        save_to_sensor : bool
+            If True, saves the true bgs to true_bg_history and generated sensor bgs to the sensor_bg_history
 
         Returns
         -------
-        delayed_trace : numpy float array
-            The iCGM array with an added front delay (if any)
+        sensor_bg_trace : numpy float array
+            The array of iCGM sensor bgs generated from the true_bg_trace
 
         """
 
-        end_time = start_time + len(true_bg_trace)
-        drift = self.drift_multiplier[start_time:end_time]
-        noise = self.noise[start_time:end_time]
+        sensor_bg_trace = []
 
-        icgm_trace = ((true_bg_trace * self.bias_factor) * drift) + noise
-        delayed_trace = np.insert(icgm_trace, 0, [np.nan] * int(self.delay / 5))
+        for true_bg_value in true_bg_trace:
+            sensor_bg = self.get_bg(true_bg_value, save_to_sensor, sensor_time_offset)
+            sensor_bg_trace.append(sensor_bg)
+            sensor_time_offset += 1
 
-        return delayed_trace
+        # end_time = start_time + len(true_bg_trace)
+        # drift_multiplier = self.drift_multiplier[start_time:end_time]
+        # noise = self.noise[start_time:end_time]
+
+        # icgm_trace = ((true_bg_trace * self.bias_factor) * drift_multiplier) + noise
+        # delayed_trace = np.insert(icgm_trace, 0, [np.nan] * int(self.delay / 5))
+
+        return sensor_bg_trace
+
+    def backfill_sensor_data(self, true_bg_history):
+        """Backfills the sensor with true bgs and sensor bgs"""
+        sensor_time_offset = self.sensor_time - len(true_bg_history)
+        try:
+            self.validate_sensor_time(sensor_time_offset)
+            _ = self.get_bg_trace(true_bg_history, save_to_sensor=True, sensor_time_offset=sensor_time_offset)
+        except Exception as e:
+            error = str(e) + "Trying to backfill data before start of sensor life. "
+            error += "Either establish the sensor at a different sensor_time or backfill with less data."
+            raise Exception(error)
 
 
 class iCGMSensorGenerator(object):
@@ -230,7 +297,6 @@ class iCGMSensorGenerator(object):
         else:
             self.delay = 10
 
-
         self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range()
 
         # set the random seed for reproducibility
@@ -242,7 +308,6 @@ class iCGMSensorGenerator(object):
         self.batch_sensor_properties = None
 
         return
-
 
     def fit(self, true_bg_trace=None):
         """Creates the batch of iCGM sensors fit to a true_bg_trace using brute force"""

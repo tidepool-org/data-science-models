@@ -17,7 +17,7 @@ from math import sqrt
 from scipy.stats import johnsonsu
 from scipy.optimize import curve_fit
 import datetime
-from pyloopkit.dose import DoseType
+#from pyloopkit.dose import DoseType
 
 # %% FUNCTIONS, CLASSES, AND CONSTANTS
 
@@ -1290,57 +1290,57 @@ def get_search_range(
 def str2bool(string_):
     return string_.lower() in ("yes", "true", "t", "1")
 
-
-def input_table_to_dict(input_df):
-    dict_ = dict()
-
-    # first parse and format the settings
-    all_settings = input_df["settings"].dropna()
-    dict_["settings_dictionary"] = all_settings.to_dict()
-
-    for k in dict_["settings_dictionary"].keys():
-        if k in ["dynamic_carb_absorption_enabled", "retrospective_correction_enabled"]:
-
-            dict_["settings_dictionary"][k] = str2bool(dict_["settings_dictionary"][k])
-        else:
-            dict_["settings_dictionary"][k] = np.safe_eval(dict_["settings_dictionary"][k])
-    if "suspend_threshold" not in dict_["settings_dictionary"].keys():
-        dict_["settings_dictionary"]["suspend_threshold"] = None
-
-    # then parse and format the rest
-    input_df_T = input_df.drop(columns=["settings"]).dropna(axis=0, how="all").T
-
-    input_df_columns = input_df_T.columns
-    for col in input_df_columns:
-        if "units" in col:
-            dict_[col] = input_df_T[col].dropna().unique()[0]
-        elif "offset" in col:
-            dict_[col] = int(np.safe_eval(input_df_T[col].dropna()[0]))
-        elif "time_to_calculate" in col:
-            dict_[col] = datetime.datetime.fromisoformat(pd.to_datetime(input_df_T[col].dropna()[0]).isoformat())
-        else:
-            temp_df = input_df_T[col].dropna()
-            temp_array = []
-            for v in temp_df.values:
-                if ":" in v:
-                    if len(v) == 7:
-                        obj = datetime.time.fromisoformat(pd.to_datetime(v).strftime("%H:%M:%S"))
-                    elif len(v) == 8:
-                        obj = datetime.time.fromisoformat(v)
-                    elif len(v) > 8:
-                        obj = datetime.datetime.fromisoformat(pd.to_datetime(v).isoformat())
-                    else:
-                        obj = np.safe_eval(v)
-                elif "DoseType" in v:
-                    obj = DoseType.from_str(v[9:])
-                else:
-                    obj = np.safe_eval(v)
-
-                temp_array = np.append(temp_array, obj)
-
-            dict_[col] = list(temp_array)
-
-    return dict_
+#
+# def input_table_to_dict(input_df):
+#     dict_ = dict()
+#
+#     # first parse and format the settings
+#     all_settings = input_df["settings"].dropna()
+#     dict_["settings_dictionary"] = all_settings.to_dict()
+#
+#     for k in dict_["settings_dictionary"].keys():
+#         if k in ["dynamic_carb_absorption_enabled", "retrospective_correction_enabled"]:
+#
+#             dict_["settings_dictionary"][k] = str2bool(dict_["settings_dictionary"][k])
+#         else:
+#             dict_["settings_dictionary"][k] = np.safe_eval(dict_["settings_dictionary"][k])
+#     if "suspend_threshold" not in dict_["settings_dictionary"].keys():
+#         dict_["settings_dictionary"]["suspend_threshold"] = None
+#
+#     # then parse and format the rest
+#     input_df_T = input_df.drop(columns=["settings"]).dropna(axis=0, how="all").T
+#
+#     input_df_columns = input_df_T.columns
+#     for col in input_df_columns:
+#         if "units" in col:
+#             dict_[col] = input_df_T[col].dropna().unique()[0]
+#         elif "offset" in col:
+#             dict_[col] = int(np.safe_eval(input_df_T[col].dropna()[0]))
+#         elif "time_to_calculate" in col:
+#             dict_[col] = datetime.datetime.fromisoformat(pd.to_datetime(input_df_T[col].dropna()[0]).isoformat())
+#         else:
+#             temp_df = input_df_T[col].dropna()
+#             temp_array = []
+#             for v in temp_df.values:
+#                 if ":" in v:
+#                     if len(v) == 7:
+#                         obj = datetime.time.fromisoformat(pd.to_datetime(v).strftime("%H:%M:%S"))
+#                     elif len(v) == 8:
+#                         obj = datetime.time.fromisoformat(v)
+#                     elif len(v) > 8:
+#                         obj = datetime.datetime.fromisoformat(pd.to_datetime(v).isoformat())
+#                     else:
+#                         obj = np.safe_eval(v)
+#                 elif "DoseType" in v:
+#                     obj = DoseType.from_str(v[9:])
+#                 else:
+#                     obj = np.safe_eval(v)
+#
+#                 temp_array = np.append(temp_array, obj)
+#
+#             dict_[col] = list(temp_array)
+#
+#     return dict_
 
 
 # create pandas dataframes from the input data

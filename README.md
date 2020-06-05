@@ -1,6 +1,6 @@
 # Tidepool Data Science Modeling
 
-[![Build Status](https://travis-ci.com/tidepool-org/data-science-model-tools.svg?branch=master)](https://travis-ci.com/tidepool-org/data-science-model-tools)
+[![Build Status](https://travis-ci.com/tidepool-org/data-science-models.svg?branch=jam/refactor-icgm-sensor-generator)](https://travis-ci.com/tidepool-org/data-science-model-tools)
 
 # Metabolism Modeling
 
