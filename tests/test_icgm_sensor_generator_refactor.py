@@ -52,9 +52,7 @@ def test_refactor_default_state():
     assert refactored_batch_sensor_properties.equals(original_batch_sensor_properties)
 
 
-def create_sample_sensor(
-    sensor_life_days, sensor_time,
-):
+def create_sample_sensor(sensor_life_days, time_index, sensor_datetime=None):
 
     sample_sensor_properties = pd.DataFrame(index=[0])
     sample_sensor_properties["initial_bias"] = 1.992889
@@ -71,7 +69,8 @@ def create_sample_sensor(
     sample_sensor = iCGMSensor(
         sensor_properties=sample_sensor_properties,
         sensor_life_days=sensor_life_days,
-        sensor_time=sensor_time,
+        time_index=time_index,
+        sensor_datetime=sensor_datetime,
     )
 
     return sample_sensor, sample_sensor_properties
@@ -92,61 +91,137 @@ def check_sensor_properties(sensor, sensor_properties):
 
 def test_sample_sensor_creation():
 
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, sensor_time=0,)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=0,)
     assert isinstance(sample_sensor, iCGMSensor)
     check_sensor_properties(sample_sensor, sample_sensor_properties)
-    assert sample_sensor.sensor_time == 0
+    assert sample_sensor.time_index == 0
     assert sample_sensor.true_bg_history == []
     assert sample_sensor.sensor_bg_history == []
     assert sample_sensor.sensor_life_days == 10
 
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, sensor_time=287,)
-    assert sample_sensor.sensor_time == 287
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=287,)
+    assert sample_sensor.time_index == 287
     assert sample_sensor.sensor_life_days == 1
 
 
 def test_invalid_sensor_creation():
-
+    """Test to make sure that invalid starting time_indexs are thrownthe correct Exceptions"""
     with pytest.raises(Exception) as e:
-        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, sensor_time=288,)
+        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=288,)
+
+    # Reminder: Although there are 288 points / day, time_index starts at 0
     expected_exception_message = "Sensor time_index 288 outside of sensor life! "
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
 
+    with pytest.raises(Exception) as e:
+        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=-1,)
+    expected_exception_message = "Sensor time_index -1 outside of sensor life! "
+    received_exception_message = str(e.value)
+    assert expected_exception_message == received_exception_message
 
-def test_wrong_sensor_backfill():
+
+def test_invalid_sensor_backfill():
     """Sensor backfill should fail when backfilled data goes past the sensor start date"""
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, sensor_time=0)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=0)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
-    backfill_data = [100, 101, 102, 103, 104]
+    backfill_true_bg_history = [100, 101, 102, 103, 104]
 
     with pytest.raises(Exception) as e:
-        sample_sensor.backfill_sensor_data(backfill_data)
+        sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
 
     expected_exception_message = (
         "Sensor time_index -5 outside of sensor life! Trying to backfill data before start of sensor life. "
-        + "Either establish the sensor at a different sensor_time or backfill with less data."
+        + "Either establish the sensor at a different time_index or backfill with less data."
     )
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
 
 
 def test_correct_sensor_backfill():
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, sensor_time=5)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=5)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
-    backfill_data = [100, 101, 102, 103, 104]
-    sample_sensor.backfill_sensor_data(backfill_data)
-    assert sample_sensor.sensor_time == 5
+    backfill_true_bg_history = [100, 101, 102, 103, 104]
+    sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
+    assert sample_sensor.time_index == 5
 
-    expected_sensor_bg_history = [np.nan, np.nan, 85.53291217733658, 86.7455243131965, 91.30904749039524]
-    np.testing.assert_equal(sample_sensor.sensor_bg_history, expected_sensor_bg_history)
+    expected_sensor_bg_history = [np.nan, np.nan, 93.6647980483592, 103.61317563648004, 101.79296809857229]
+    assert str(sample_sensor.sensor_bg_history) == str(expected_sensor_bg_history)
 
 
 def test_sensor_update():
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, sensor_time=0)
-    for expected_sensor_time in range((10 * 288)-1):
-        assert sample_sensor.sensor_time == expected_sensor_time
+    """Test sensor update() method functionality"""
+
+    sensor_life_days = 10
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    expected_datetime_history = [sensor_datetime]
+
+    sample_sensor, sample_sensor_properties = create_sample_sensor(
+        sensor_life_days=sensor_life_days, time_index=0, sensor_datetime=sensor_datetime
+    )
+
+    _ = sample_sensor.get_bg(100)  #
+
+    for expected_time_index in range(0, (10 * 288) - 1):
+        assert sample_sensor.time_index == expected_time_index
+        assert sample_sensor.sensor_datetime == sensor_datetime
+        sensor_datetime += datetime.timedelta(minutes=5)
+        expected_datetime_history.append(sensor_datetime)
+        sample_sensor.update(sensor_datetime)
         _ = sample_sensor.get_bg(100)
+
+    assert sample_sensor.time_index == 2879
+    assert sample_sensor.sensor_datetime == datetime.datetime(2020, 1, 10, 23, 55)
+    assert len(sample_sensor.datetime_history) == 10 * 288
+    assert sample_sensor.datetime_history == expected_datetime_history
+
+    with pytest.raises(Exception) as e:
         sample_sensor.update(None)
+
+    expected_exception_message = "Sensor time_index 2880 outside of sensor life! Sensor has expired!"
+    received_exception_message = str(e.value)
+    assert expected_exception_message == received_exception_message
+
+
+def test_get_loop_format():
+    """Test that the sensor returns the proper loop format"""
+    sensor_life_days = 10
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(
+        sensor_life_days=sensor_life_days, time_index=5, sensor_datetime=sensor_datetime
+    )
+
+    backfill_true_bg_history = [100, 101, 102, 103, 104]
+    sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
+
+    expected_glucose_dates = [
+        datetime.datetime(2019, 12, 31, 23, 35),
+        datetime.datetime(2019, 12, 31, 23, 40),
+        datetime.datetime(2019, 12, 31, 23, 45),
+        datetime.datetime(2019, 12, 31, 23, 50),
+        datetime.datetime(2019, 12, 31, 23, 55),
+    ]
+    expected_glucose_values = [400, 400, 94.0, 104.0, 102.0]  # NaNs are currently returned as 400s
+    glucose_dates, glucose_values = sample_sensor.get_loop_format()
+
+    assert glucose_dates == expected_glucose_dates
+    assert glucose_values == expected_glucose_values
+
+
+def test_backfill_calculations():
+    """Compare normal sensor data updating to backfill calculation method"""
+
+    true_bg_trace = [100, 101, 102, 103, 104]
+
+    # Normal trace calculation starting at the start of sensor
+    normal_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=0)
+    for true_bg_value in true_bg_trace:
+        normal_sensor.get_bg(true_bg_value)
+        normal_sensor.update(None)
+
+    backfilled_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=5)
+    backfilled_sensor.backfill_and_calculate_sensor_data(true_bg_trace)
+
+    assert str(normal_sensor.__dict__) == str(backfilled_sensor.__dict__)
