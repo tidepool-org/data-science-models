@@ -132,7 +132,7 @@ def test_invalid_sensor_backfill():
         sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
 
     expected_exception_message = (
-        "Sensor time_index -5 outside of sensor life! Trying to backfill data before start of sensor life. "
+        "Sensor time_index -4 outside of sensor life! Trying to backfill data before start of sensor life. "
         + "Either establish the sensor at a different time_index or backfill with less data."
     )
     received_exception_message = str(e.value)
@@ -140,12 +140,12 @@ def test_invalid_sensor_backfill():
 
 
 def test_correct_sensor_backfill():
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=5)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=4)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
     backfill_true_bg_history = [100, 101, 102, 103, 104]
     sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
-    assert sample_sensor.time_index == 5
+    assert sample_sensor.time_index == 4
 
     expected_sensor_bg_history = [np.nan, np.nan, 93.6647980483592, 103.61317563648004, 101.79296809857229]
     assert str(sample_sensor.sensor_bg_history) == str(expected_sensor_bg_history)
@@ -190,18 +190,18 @@ def test_get_loop_format():
     sensor_life_days = 10
     sensor_datetime = datetime.datetime(2020, 1, 1)
     sample_sensor, sample_sensor_properties = create_sample_sensor(
-        sensor_life_days=sensor_life_days, time_index=5, sensor_datetime=sensor_datetime
+        sensor_life_days=sensor_life_days, time_index=4, sensor_datetime=sensor_datetime
     )
 
     backfill_true_bg_history = [100, 101, 102, 103, 104]
     sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
 
     expected_glucose_dates = [
-        datetime.datetime(2019, 12, 31, 23, 35),
         datetime.datetime(2019, 12, 31, 23, 40),
         datetime.datetime(2019, 12, 31, 23, 45),
         datetime.datetime(2019, 12, 31, 23, 50),
         datetime.datetime(2019, 12, 31, 23, 55),
+        datetime.datetime(2020, 1, 1, 0, 0)
     ]
     expected_glucose_values = [400, 400, 94.0, 104.0, 102.0]  # NaNs are currently returned as 400s
     glucose_dates, glucose_values = sample_sensor.get_loop_format()
@@ -221,7 +221,8 @@ def test_backfill_calculations():
         normal_sensor.get_bg(true_bg_value)
         normal_sensor.update(None)
 
-    backfilled_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=5)
+    backfilled_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=4)
     backfilled_sensor.backfill_and_calculate_sensor_data(true_bg_trace)
+    backfilled_sensor.update(None)
 
     assert str(normal_sensor.__dict__) == str(backfilled_sensor.__dict__)

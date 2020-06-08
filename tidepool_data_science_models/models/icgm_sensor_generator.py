@@ -236,7 +236,7 @@ class iCGMSensor(Sensor):
 
     def backfill_and_calculate_sensor_data(self, backfill_true_bg_history):
         """Backfills the sensor with true bgs and calcualtes the corresponding sensor bgs"""
-        backfill_time_offset = - len(backfill_true_bg_history)
+        backfill_time_offset = - len(backfill_true_bg_history) + 1
         backfill_start_index = self.time_index + backfill_time_offset
         try:
             self.validate_time_index(backfill_start_index)
