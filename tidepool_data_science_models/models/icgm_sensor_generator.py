@@ -13,6 +13,8 @@ import numpy as np
 from scipy.optimize import brute, fmin
 from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
+import multiprocessing
+multiprocessing.set_start_method("fork")
 
 
 # %% Definitions
