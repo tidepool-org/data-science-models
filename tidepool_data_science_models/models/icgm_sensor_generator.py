@@ -139,7 +139,7 @@ class iCGMSensorGenerator(object):
 
         return
 
-    def generate_sensors(self, n_sensors):
+    def generate_sensors(self, n_sensors, sensor_start_time_index=0, sensor_start_datetime=None):
 
         if self.dist_params is None:
             raise Exception("iCGM Sensor Generator has not been fit() to a true_bg_trace distribution.")
@@ -176,7 +176,13 @@ class iCGMSensorGenerator(object):
 
         for sensor_num in range(n_sensors):
             sensor_properties = self.individual_sensor_properties.loc[sensor_num]
-            sensors.append(iCGMSensor(sensor_properties=sensor_properties))
+            sensors.append(
+                iCGMSensor(
+                    sensor_properties=sensor_properties,
+                    time_index=sensor_start_time_index,
+                    sensor_datetime=sensor_start_datetime,
+                )
+            )
 
         self.n_sensors = n_sensors
         self.sensors = sensors  # Array of sensor objects
