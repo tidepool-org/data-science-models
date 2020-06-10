@@ -204,7 +204,7 @@ def test_get_loop_format():
         datetime.datetime(2020, 1, 1, 0, 0)
     ]
     expected_glucose_values = [400, 400, 94.0, 104.0, 102.0]  # NaNs are currently returned as 400s
-    glucose_dates, glucose_values = sample_sensor.get_loop_format()
+    glucose_dates, glucose_values = sample_sensor.get_loop_inputs()
 
     assert glucose_dates == expected_glucose_dates
     assert glucose_values == expected_glucose_values

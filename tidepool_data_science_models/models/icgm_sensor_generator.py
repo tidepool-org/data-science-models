@@ -246,7 +246,7 @@ class iCGMSensor(Sensor):
             error += "Either establish the sensor at a different time_index or backfill with less data."
             raise Exception(error)
 
-    def get_loop_format(self):
+    def get_loop_inputs(self):
         """
         Get two numpy arrays for dates and values, used for Loop input
         """
