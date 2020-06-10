@@ -9,7 +9,8 @@ import datetime
 import copy
 import pytest
 from tidepool_data_science_models.models.icgm_sensor_generator_OLD import icgm_simulator_old
-from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator, iCGMSensor
+from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
+from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
 import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
 
 # %% Tests
@@ -38,8 +39,8 @@ def test_refactor_default_state():
     # Calculated refactored results
     test_bg_trace = sf.generate_test_bg_trace(days_of_data=2)
 
-    icgm_sensor_generator = iCGMSensorGenerator(sensor_batch_size=3, true_dataset_name="48hours-sinusoid")
-    icgm_sensor_generator.fit(test_bg_trace)
+    icgm_sensor_generator = iCGMSensorGenerator(batch_training_size=3, true_dataset_name="48hours-sinusoid")
+    icgm_sensor_generator.fit(true_bg_trace=test_bg_trace)
     sensors = icgm_sensor_generator.generate_sensors(3)
 
     refactored_icgm_traces = icgm_sensor_generator.icgm_traces
@@ -50,6 +51,17 @@ def test_refactor_default_state():
     assert np.array_equal(refactored_icgm_traces, original_icgm_traces)
     assert refactored_individual_sensor_properties.equals(original_individual_sensor_properties)
     assert refactored_batch_sensor_properties.equals(original_batch_sensor_properties)
+
+def test_generator_fails_without_fit():
+
+    icgm_sensor_generator = iCGMSensorGenerator()
+
+    with pytest.raises(Exception) as e:
+        sensors = icgm_sensor_generator.generate_sensors(n_sensors=3)
+
+    expected_exception_message = "iCGM Sensor Generator has not been fit() to a true_bg_trace distribution."
+    received_exception_message = str(e.value)
+    assert expected_exception_message == received_exception_message
 
 
 def create_sample_sensor(sensor_life_days, time_index, sensor_datetime=None):

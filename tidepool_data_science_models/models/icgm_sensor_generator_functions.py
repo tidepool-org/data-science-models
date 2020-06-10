@@ -1502,7 +1502,7 @@ def calculate_sensor_generator_tables(generator):
     # g6 = sf.calc_g6_table6(df, n_sensors)
 
     input_settings_table = capture_settings(
-        generator.sensor_batch_size,
+        generator.batch_training_size,
         generator.use_g6_accuracy_in_loss,
         generator.bias_type,
         generator.bias_drift_type,
