@@ -180,7 +180,7 @@ class iCGMSensorGenerator(object):
                 iCGMSensor(
                     sensor_properties=sensor_properties,
                     time_index=sensor_start_time_index,
-                    sensor_datetime=sensor_start_datetime,
+                    current_datetime=sensor_start_datetime,
                 )
             )
 

@@ -64,7 +64,7 @@ def test_generator_fails_without_fit():
     assert expected_exception_message == received_exception_message
 
 
-def create_sample_sensor(sensor_life_days, time_index, sensor_datetime=None):
+def create_sample_sensor(sensor_life_days=10, time_index=0, sensor_datetime=None):
 
     sample_sensor_properties = pd.DataFrame(index=[0])
     sample_sensor_properties["initial_bias"] = 1.992889
@@ -82,7 +82,7 @@ def create_sample_sensor(sensor_life_days, time_index, sensor_datetime=None):
         sensor_properties=sample_sensor_properties,
         sensor_life_days=sensor_life_days,
         time_index=time_index,
-        sensor_datetime=sensor_datetime,
+        current_datetime=sensor_datetime,
     )
 
     return sample_sensor, sample_sensor_properties
@@ -133,66 +133,60 @@ def test_invalid_sensor_creation():
     assert expected_exception_message == received_exception_message
 
 
-def test_invalid_sensor_backfill():
-    """Sensor backfill should fail when backfilled data goes past the sensor start date"""
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=0)
+def test_invalid_sensor_prefill():
+    """Sensor prefill should fail when prefilled data goes past the sensor expiration date"""
+    sample_sensor, sample_sensor_properties = create_sample_sensor(time_index=2879)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
-    backfill_true_bg_history = [100, 101, 102, 103, 104]
+    prefill_true_bg_history = [100, 101, 102, 103, 104]
 
     with pytest.raises(Exception) as e:
-        sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
+        sample_sensor.prefill_sensor_history(prefill_true_bg_history)
 
     expected_exception_message = (
-        "Sensor time_index -4 outside of sensor life! Trying to backfill data before start of sensor life. "
-        + "Either establish the sensor at a different time_index or backfill with less data."
+        "Trying to prefill past sensor life. Establish the sensor at a different time_index or prefill with less data."
     )
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
 
 
-def test_correct_sensor_backfill():
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=4)
+def test_correct_sensor_prefill():
+    sample_sensor, sample_sensor_properties = create_sample_sensor()
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
-    backfill_true_bg_history = [100, 101, 102, 103, 104]
-    sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
-    assert sample_sensor.time_index == 4
+    prefill_true_bg_history = [100, 101, 102, 103, 104]
+    sample_sensor.prefill_sensor_history(prefill_true_bg_history)
+    assert sample_sensor.time_index == 5
 
     expected_sensor_bg_history = [np.nan, np.nan, 93.6647980483592, 103.61317563648004, 101.79296809857229]
     assert str(sample_sensor.sensor_bg_history) == str(expected_sensor_bg_history)
 
 
-def test_sensor_update():
-    """Test sensor update() method functionality"""
+def test_sensor_expiration():
+    """Test sensor update() and expiration functionality"""
 
-    sensor_life_days = 10
     sensor_datetime = datetime.datetime(2020, 1, 1)
-    expected_datetime_history = [sensor_datetime]
+    expected_datetime_history = []
 
-    sample_sensor, sample_sensor_properties = create_sample_sensor(
-        sensor_life_days=sensor_life_days, time_index=0, sensor_datetime=sensor_datetime
-    )
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_datetime=sensor_datetime)
 
-    _ = sample_sensor.get_bg(100)  #
-
-    for expected_time_index in range(0, (10 * 288) - 1):
-        assert sample_sensor.time_index == expected_time_index
-        assert sample_sensor.sensor_datetime == sensor_datetime
-        sensor_datetime += datetime.timedelta(minutes=5)
-        expected_datetime_history.append(sensor_datetime)
-        sample_sensor.update(sensor_datetime)
+    for expected_time_index in range(10 * 288):
         _ = sample_sensor.get_bg(100)
+        assert sample_sensor.time_index == expected_time_index
+        assert sample_sensor.current_datetime == sensor_datetime
+        expected_datetime_history.append(sensor_datetime)
+        sensor_datetime += datetime.timedelta(minutes=5)
+        sample_sensor.update(sensor_datetime)
 
-    assert sample_sensor.time_index == 2879
-    assert sample_sensor.sensor_datetime == datetime.datetime(2020, 1, 10, 23, 55)
+    assert sample_sensor.time_index == 2880
+    assert sample_sensor.current_datetime == datetime.datetime(2020, 1, 11)
     assert len(sample_sensor.datetime_history) == 10 * 288
     assert sample_sensor.datetime_history == expected_datetime_history
 
     with pytest.raises(Exception) as e:
         sample_sensor.update(None)
 
-    expected_exception_message = "Sensor time_index 2880 outside of sensor life! Sensor has expired!"
+    expected_exception_message = "Cannot update any further: Sensor has expired."
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
 
@@ -200,20 +194,21 @@ def test_sensor_update():
 def test_get_loop_format():
     """Test that the sensor returns the proper loop format"""
     sensor_life_days = 10
-    sensor_datetime = datetime.datetime(2020, 1, 1)
+    sensor_start_datetime = datetime.datetime(2020, 1, 1, 0, 0)
     sample_sensor, sample_sensor_properties = create_sample_sensor(
-        sensor_life_days=sensor_life_days, time_index=4, sensor_datetime=sensor_datetime
+        sensor_life_days=sensor_life_days, sensor_datetime=sensor_start_datetime
     )
 
-    backfill_true_bg_history = [100, 101, 102, 103, 104]
-    sample_sensor.backfill_and_calculate_sensor_data(backfill_true_bg_history)
+    prefill_true_bg_history = [100, 101, 102, 103, 104]
+    sample_sensor.prefill_sensor_history(prefill_true_bg_history, sensor_start_datetime)
 
     expected_glucose_dates = [
-        datetime.datetime(2019, 12, 31, 23, 40),
-        datetime.datetime(2019, 12, 31, 23, 45),
-        datetime.datetime(2019, 12, 31, 23, 50),
-        datetime.datetime(2019, 12, 31, 23, 55),
-        datetime.datetime(2020, 1, 1, 0, 0)
+        datetime.datetime(2020, 1, 1, 0, 0),
+        datetime.datetime(2020, 1, 1, 0, 5),
+        datetime.datetime(2020, 1, 1, 0, 10),
+        datetime.datetime(2020, 1, 1, 0, 15),
+        datetime.datetime(2020, 1, 1, 0, 20)
+
     ]
     expected_glucose_values = [400, 400, 94.0, 104.0, 102.0]  # NaNs are currently returned as 400s
     glucose_dates, glucose_values = sample_sensor.get_loop_inputs()
@@ -222,19 +217,20 @@ def test_get_loop_format():
     assert glucose_values == expected_glucose_values
 
 
-def test_backfill_calculations():
-    """Compare normal sensor data updating to backfill calculation method"""
+def test_prefill_calculations():
+    """Compare normal sensor data updating to prefill calculation method"""
 
     true_bg_trace = [100, 101, 102, 103, 104]
+    sensor_start_datetime = datetime.datetime(2020, 1, 1, 0, 0)
 
     # Normal trace calculation starting at the start of sensor
-    normal_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=0)
+    normal_sensor, _ = create_sample_sensor(sensor_datetime=sensor_start_datetime)
     for true_bg_value in true_bg_trace:
         normal_sensor.get_bg(true_bg_value)
-        normal_sensor.update(None)
+        next_datetime = normal_sensor.current_datetime + datetime.timedelta(minutes=5)
+        normal_sensor.update(next_datetime)
 
-    backfilled_sensor, _ = create_sample_sensor(sensor_life_days=10, time_index=4)
-    backfilled_sensor.backfill_and_calculate_sensor_data(true_bg_trace)
-    backfilled_sensor.update(None)
+    prefilled_sensor, _ = create_sample_sensor()
+    prefilled_sensor.prefill_sensor_history(true_bg_trace, datetime_start=sensor_start_datetime)
 
-    assert str(normal_sensor.__dict__) == str(backfilled_sensor.__dict__)
+    assert str(normal_sensor.__dict__) == str(prefilled_sensor.__dict__)

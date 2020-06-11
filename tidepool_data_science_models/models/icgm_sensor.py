@@ -38,12 +38,12 @@ class iCGMSensor(Sensor):
         time_index : int
             The internal time of the sensor, used for errors and drift over the sensor life.
             (1 = 5 minutes, 2 = 10 minutes, etc)
-        sensor_datetime : datetime.datetime or None
+        current_datetime : datetime.datetime or None
             The datetime timestamp associated with the time_index
 
     """
 
-    def __init__(self, sensor_properties, sensor_life_days=10, time_index=0, sensor_datetime=None):
+    def __init__(self, sensor_properties, sensor_life_days=10, time_index=0, current_datetime=None):
 
         super().__init__()
 
@@ -53,9 +53,12 @@ class iCGMSensor(Sensor):
         if sensor_life_days <= 0 or not isinstance(sensor_life_days, int):
             raise Exception("iCGM Sensor's sensor_life_days must be a positive non-zero integer")
 
+        self.sensor_expired = False
+        self.current_true_bg = None
+        self.current_sensor_bg = None
         self.sensor_life_days = sensor_life_days
         self.time_index = time_index
-        self.sensor_datetime = sensor_datetime
+        self.current_datetime = current_datetime
 
         self.validate_time_index(self.time_index)
 
@@ -83,16 +86,27 @@ class iCGMSensor(Sensor):
         if before_sensor_starts or after_sensor_expires:
             raise Exception("Sensor time_index {} outside of sensor life! ".format(str(time_index)))
 
-    def update(self, datetime):
+    def store(self):
+        """Store the current sensor state into history"""
+        self.true_bg_history.append(self.current_true_bg)
+        self.sensor_bg_history.append(self.current_sensor_bg)
+        self.datetime_history.append(self.current_datetime)
+
+    def update(self, next_datetime):
         """Step the sensor clock time forward"""
-        next_time_index = self.time_index + 1
-        try:
-            self.validate_time_index(next_time_index)
-            self.time_index = next_time_index
-            self.sensor_datetime = datetime
-        except Exception as e:
-            error = str(e) + "Sensor has expired!"
-            raise Exception(error)
+        if not self.sensor_expired:
+            self.store()
+            self.time_index += 1
+            self.current_datetime = next_datetime
+            self.current_sensor_bg = None
+            self.current_true_bg = None
+
+        else:
+            raise Exception("Cannot update any further: Sensor has expired.")
+
+        if self.time_index == self.sensor_life_days * 288:
+            self.sensor_expired = True
+
         return
 
     def calculate_sensor_bias_properties(self):
@@ -128,13 +142,7 @@ class iCGMSensor(Sensor):
 
         return
 
-    def append_bg_history(self, true_bg_value, icgm_value, sensor_datetime):
-        """Appends the true_bg_value and associated icgm_value to sensor history as well as the sensor_datetime"""
-        self.true_bg_history.append(true_bg_value)
-        self.sensor_bg_history.append(icgm_value)
-        self.datetime_history.append(sensor_datetime)
-
-    def get_bg(self, true_bg_value, true_bg_history=None, save_to_sensor=True, time_index_offset=0):
+    def get_bg(self, true_bg_value, true_bg_history=None, time_index_offset=0):
         """
         Calculate the iCGM value.
 
@@ -146,8 +154,6 @@ class iCGMSensor(Sensor):
             The true blood glucose value (mg/dL)
         true_bg_history : array (float) (default: None)
             The history of true bg values (used to calculate delay)
-        save_to_sensor : bool
-            Whether or not to save the true_bg and generated icgm_value to the sensor bg history
         time_index_offset : int
             The relative time offset from the current time_index (default of 0 uses the current time_index)
             Used when calculating future or past values without altering the time_index.
@@ -158,17 +164,11 @@ class iCGMSensor(Sensor):
             The generated iCGM value
 
         """
+        self.current_true_bg = true_bg_value
 
+        # If no history is given, use the sensor's internal history
         if true_bg_history is None:
             true_bg_history = self.true_bg_history
-
-        relative_time_index = self.time_index + time_index_offset
-        self.validate_time_index(relative_time_index)
-
-        relative_sensor_datetime = self.sensor_datetime
-
-        if isinstance(relative_sensor_datetime, datetime.datetime):
-            relative_sensor_datetime += datetime.timedelta(minutes=time_index_offset * 5)
 
         # Get delayed true_bg
         if self.delay > 0:
@@ -180,27 +180,27 @@ class iCGMSensor(Sensor):
         else:
             delayed_true_bg = true_bg_value
 
+        # Calculate the relative time index
+        relative_time_index = self.time_index + time_index_offset
+        self.validate_time_index(relative_time_index)
+
         # Calculate value
         drift_multiplier = self.drift_multiplier[relative_time_index]
         noise = self.noise[relative_time_index]
         icgm_value = (delayed_true_bg * self.bias_factor * drift_multiplier) + noise
 
-        if save_to_sensor:
-            self.append_bg_history(true_bg_value, icgm_value, relative_sensor_datetime)
+        self.current_sensor_bg = icgm_value
 
         return icgm_value
 
-    def get_bg_trace(self, true_bg_trace, save_to_sensor=False, time_index_offset=0):
+    def get_bg_trace(self, true_bg_trace):
         """
+        Given a trace of true bg values, calculate the sensor bgs using the current sensor state
+
         Parameters
         ----------
         true_bg_trace : numpy float array
             The true blood glucose value trace (mg/dL)
-        save_to_sensor : bool
-            If True, saves the true bgs to true_bg_history and generated sensor bgs to the sensor_bg_history
-        time_index_offset : int
-            The relative time offset from the current time_index (default of 0 uses the current time_index)
-            Used when calculating future or past values without altering the time_index.
 
         Returns
         -------
@@ -211,30 +211,37 @@ class iCGMSensor(Sensor):
 
         temp_true_bg_history = []
         sensor_bg_trace = []
+        time_index_offset = 0
 
         for true_bg_value in true_bg_trace:
-            sensor_bg = self.get_bg(true_bg_value, temp_true_bg_history, save_to_sensor, time_index_offset)
+            sensor_bg = self.get_bg(true_bg_value, temp_true_bg_history, time_index_offset)
             sensor_bg_trace.append(sensor_bg)
             temp_true_bg_history.append(true_bg_value)
             time_index_offset += 1
 
         return sensor_bg_trace
 
-    def backfill_and_calculate_sensor_data(self, backfill_true_bg_history):
-        """Backfills the sensor with true bgs and calcualtes the corresponding sensor bgs"""
-        backfill_time_offset = -len(backfill_true_bg_history) + 1
-        backfill_start_index = self.time_index + backfill_time_offset
-        try:
-            self.validate_time_index(backfill_start_index)
-            _ = self.get_bg_trace(backfill_true_bg_history, save_to_sensor=True, time_index_offset=backfill_time_offset)
-        except Exception as e:
-            error = str(e) + "Trying to backfill data before start of sensor life. "
-            error += "Either establish the sensor at a different time_index or backfill with less data."
-            raise Exception(error)
+    def prefill_sensor_history(self, true_bg_history, datetime_start=None):
+        """Prefills the sensor with true bgs and calculates the corresponding sensor bgs"""
+
+        self.current_datetime = datetime_start
+
+        for true_bg_value in true_bg_history:
+            try:
+                self.get_bg(true_bg_value)
+                if isinstance(self.current_datetime, datetime.datetime):
+                    next_datetime = self.current_datetime + datetime.timedelta(minutes=5)
+                else:
+                    next_datetime = None
+                self.update(next_datetime)
+            except Exception as e:
+                e_message = (
+                    "Trying to prefill past sensor life. "
+                    + "Establish the sensor at a different time_index or prefill with less data."
+                )
+                raise Exception(e_message)
 
     def get_loop_inputs(self):
-        """
-        Get two numpy arrays for dates and values, used for Loop input
-        """
+        """Get two arrays for dates and values, used for Loop input"""
         loop_bg_values = [max(40, min(400, round(bg))) for bg in self.sensor_bg_history]
         return self.datetime_history, loop_bg_values
