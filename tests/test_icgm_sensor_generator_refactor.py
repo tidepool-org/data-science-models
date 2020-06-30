@@ -13,6 +13,7 @@ from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
 import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
 
+TEST_DATETIME = datetime.datetime(year=2020, month=1, day=1)
 # %% Tests
 
 
@@ -41,7 +42,7 @@ def test_refactor_default_state():
 
     icgm_sensor_generator = iCGMSensorGenerator(batch_training_size=3, true_dataset_name="48hours-sinusoid")
     icgm_sensor_generator.fit(true_bg_trace=test_bg_trace)
-    sensors = icgm_sensor_generator.generate_sensors(3)
+    sensors = icgm_sensor_generator.generate_sensors(sensor_start_datetime=datetime.datetime.now(), n_sensors=3)
 
     refactored_icgm_traces = icgm_sensor_generator.icgm_traces
     refactored_individual_sensor_properties, refactored_batch_sensor_properties = sf.calculate_sensor_generator_tables(
@@ -57,7 +58,7 @@ def test_generator_fails_without_fit():
     icgm_sensor_generator = iCGMSensorGenerator()
 
     with pytest.raises(Exception) as e:
-        sensors = icgm_sensor_generator.generate_sensors(n_sensors=3)
+        sensors = icgm_sensor_generator.generate_sensors(n_sensors=3, sensor_start_datetime=datetime.datetime.now())
 
     expected_exception_message = "iCGM Sensor Generator has not been fit() to a true_bg_trace distribution."
     received_exception_message = str(e.value)
@@ -96,22 +97,29 @@ def check_sensor_properties(sensor, sensor_properties):
     assert sensor.bias_drift_oscillations == sensor_properties["bias_drift_oscillations"].values[0]
     assert sensor.bias_norm_factor == sensor_properties["bias_norm_factor"].values[0]
     assert sensor.noise_coefficient == sensor_properties["noise_coefficient"].values[0]
-    assert sensor.delay == sensor_properties["delay"].values[0]
+    assert sensor.delay_minutes == sensor_properties["delay"].values[0]
     assert sensor.random_seed == sensor_properties["random_seed"].values[0]
     assert sensor.bias_drift_type == sensor_properties["bias_drift_type"].values[0]
 
 
 def test_sample_sensor_creation():
 
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=10, time_index=0,)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(
+        sensor_life_days=10,
+        time_index=0,
+        sensor_datetime=TEST_DATETIME
+    )
     assert isinstance(sample_sensor, iCGMSensor)
     check_sensor_properties(sample_sensor, sample_sensor_properties)
     assert sample_sensor.time_index == 0
-    assert sample_sensor.true_bg_history == []
     assert sample_sensor.sensor_bg_history == []
     assert sample_sensor.sensor_life_days == 10
 
-    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=287,)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(
+        sensor_life_days=1,
+        time_index=287,
+        sensor_datetime=TEST_DATETIME
+    )
     assert sample_sensor.time_index == 287
     assert sample_sensor.sensor_life_days == 1
 
@@ -119,7 +127,9 @@ def test_sample_sensor_creation():
 def test_invalid_sensor_creation():
     """Test to make sure that invalid starting time_indexs are thrownthe correct Exceptions"""
     with pytest.raises(Exception) as e:
-        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=288,)
+        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1,
+                                                                       time_index=288,
+                                                                       sensor_datetime=TEST_DATETIME)
 
     # Reminder: Although there are 288 points / day, time_index starts at 0
     expected_exception_message = "Sensor time_index 288 outside of sensor life! "
@@ -127,7 +137,9 @@ def test_invalid_sensor_creation():
     assert expected_exception_message == received_exception_message
 
     with pytest.raises(Exception) as e:
-        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1, time_index=-1,)
+        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1,
+                                                                       time_index=-1,
+                                                                       sensor_datetime=TEST_DATETIME)
     expected_exception_message = "Sensor time_index -1 outside of sensor life! "
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
@@ -135,7 +147,8 @@ def test_invalid_sensor_creation():
 
 def test_invalid_sensor_prefill():
     """Sensor prefill should fail when prefilled data goes past the sensor expiration date"""
-    sample_sensor, sample_sensor_properties = create_sample_sensor(time_index=2879)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(time_index=2879,
+                                                                   sensor_datetime=TEST_DATETIME)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
     prefill_true_bg_history = [100, 101, 102, 103, 104]
@@ -151,7 +164,7 @@ def test_invalid_sensor_prefill():
 
 
 def test_correct_sensor_prefill():
-    sample_sensor, sample_sensor_properties = create_sample_sensor()
+    sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_datetime=TEST_DATETIME)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
     prefill_true_bg_history = [100, 101, 102, 103, 104]
@@ -171,12 +184,12 @@ def test_sensor_expiration():
     sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_datetime=sensor_datetime)
 
     for expected_time_index in range(10 * 288):
-        _ = sample_sensor.get_bg(100)
+        # _ = sample_sensor.get_bg(100)
         assert sample_sensor.time_index == expected_time_index
         assert sample_sensor.current_datetime == sensor_datetime
         expected_datetime_history.append(sensor_datetime)
         sensor_datetime += datetime.timedelta(minutes=5)
-        sample_sensor.update(sensor_datetime)
+        sample_sensor.update(sensor_datetime, patient_true_bg=100)
 
     assert sample_sensor.time_index == 2880
     assert sample_sensor.current_datetime == datetime.datetime(2020, 1, 11)
@@ -186,7 +199,7 @@ def test_sensor_expiration():
     with pytest.raises(Exception) as e:
         sample_sensor.update(None)
 
-    expected_exception_message = "Cannot update any further: Sensor has expired."
+    expected_exception_message = "Sensor has expired."
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
 
@@ -194,13 +207,13 @@ def test_sensor_expiration():
 def test_get_loop_format():
     """Test that the sensor returns the proper loop format"""
     sensor_life_days = 10
-    sensor_start_datetime = datetime.datetime(2020, 1, 1, 0, 0)
+    sensor_start_datetime = datetime.datetime(2020, 1, 1, 0, 25)
     sample_sensor, sample_sensor_properties = create_sample_sensor(
         sensor_life_days=sensor_life_days, sensor_datetime=sensor_start_datetime
     )
 
     prefill_true_bg_history = [100, 101, 102, 103, 104]
-    sample_sensor.prefill_sensor_history(prefill_true_bg_history, sensor_start_datetime)
+    sample_sensor.prefill_sensor_history(prefill_true_bg_history)
 
     expected_glucose_dates = [
         datetime.datetime(2020, 1, 1, 0, 0),
@@ -226,11 +239,11 @@ def test_prefill_calculations():
     # Normal trace calculation starting at the start of sensor
     normal_sensor, _ = create_sample_sensor(sensor_datetime=sensor_start_datetime)
     for true_bg_value in true_bg_trace:
-        normal_sensor.get_bg(true_bg_value)
         next_datetime = normal_sensor.current_datetime + datetime.timedelta(minutes=5)
-        normal_sensor.update(next_datetime)
+        normal_sensor.update(next_datetime, patient_true_bg=true_bg_value)
 
-    prefilled_sensor, _ = create_sample_sensor()
-    prefilled_sensor.prefill_sensor_history(true_bg_trace, datetime_start=sensor_start_datetime)
+    prefill_sensor_start_datetime = sensor_start_datetime + datetime.timedelta(minutes=5 * len(true_bg_trace))
+    prefilled_sensor, _ = create_sample_sensor(sensor_datetime=prefill_sensor_start_datetime)
+    prefilled_sensor.prefill_sensor_history(true_bg_trace)
 
     assert str(normal_sensor.__dict__) == str(prefilled_sensor.__dict__)
