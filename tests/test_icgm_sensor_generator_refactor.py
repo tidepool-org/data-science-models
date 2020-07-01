@@ -42,7 +42,7 @@ def test_refactor_default_state():
 
     icgm_sensor_generator = iCGMSensorGenerator(batch_training_size=3, true_dataset_name="48hours-sinusoid")
     icgm_sensor_generator.fit(true_bg_trace=test_bg_trace)
-    sensors = icgm_sensor_generator.generate_sensors(sensor_start_datetime=datetime.datetime.now(), n_sensors=3)
+    sensors = icgm_sensor_generator.generate_sensors(sensor_start_datetime= TEST_DATETIME, n_sensors=3)
 
     refactored_icgm_traces = icgm_sensor_generator.icgm_traces
     refactored_individual_sensor_properties, refactored_batch_sensor_properties = sf.calculate_sensor_generator_tables(
