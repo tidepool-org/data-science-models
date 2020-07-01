@@ -58,7 +58,7 @@ def test_generator_fails_without_fit():
     icgm_sensor_generator = iCGMSensorGenerator()
 
     with pytest.raises(Exception) as e:
-        sensors = icgm_sensor_generator.generate_sensors(n_sensors=3, sensor_start_datetime=datetime.datetime.now())
+        sensors = icgm_sensor_generator.generate_sensors(n_sensors=3, sensor_start_datetime=TEST_DATETIME)
 
     expected_exception_message = "iCGM Sensor Generator has not been fit() to a true_bg_trace distribution."
     received_exception_message = str(e.value)
