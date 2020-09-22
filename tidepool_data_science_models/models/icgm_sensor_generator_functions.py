@@ -124,6 +124,18 @@ def get_95percent_bounds(percent_values_within):
 
     return lower_bound, upper_bound
 
+def generate_spurious_bg(true_bg_value):
+    if true_bg_value < 70:
+        low_options = np.arange(40, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 180)
+    elif true_bg_value > 180:
+        low_options = np.arange(71, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
+    else:
+        low_options = np.arange(40, 401)
+        high_options = np.arange(0,0)
+
+    return(np.random.choice(np.concatenate([low_options, high_options]), 1).item())
 
 def generate_icgm_sensors(
     true_bg_trace,
@@ -136,6 +148,11 @@ def generate_icgm_sensors(
     noise_coefficient=0,  # (0 ~ 60dB, 5 ~ 36 dB, 10, 30 dB)
     delay=5,  # (suggest 0, 5, 10, 15)
     random_seed=0,
+    avg_normal_time=24 * 60,
+    avg_missing_time = 2 * 60,
+    avg_spurious_time = 10,
+    p_spurious_missing = 0.8,
+    p_normal_to_missing = 0.95
 ):
     # set a random seed for reproducibility
 
@@ -194,6 +211,42 @@ def generate_icgm_sensors(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
 
+    avg_normal_steps = avg_normal_time / 5
+    avg_missing_steps = avg_missing_time / 5
+    avg_spurious_steps = avg_spurious_time / 5
+
+    # States: 0: Normal, 1: Missing, 2: Spurious
+    intensity_mat = np.array(
+        [[1 / avg_normal_steps, p_normal_to_missing / avg_normal_steps, (1 - p_normal_to_missing) / avg_normal_steps],
+         [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
+         [(1 - p_spurious_missing) / avg_spurious_steps, p_spurious_missing / avg_spurious_steps,
+          1 / avg_spurious_steps]])
+
+    state_options = np.arange(intensity_mat.shape[0])
+    state = np.zeros(shape=iCGM.shape, dtype=np.int)
+
+    for i in range(0, n_sensors):
+        t_current = 0
+        current_state = 0
+
+        while t_current < iCGM.shape[1]:
+            t_jump = np.random.exponential(1 / intensity_mat[current_state, current_state], 1).astype(int).item()
+            state[i, t_current:t_current + t_jump] = current_state
+
+            next_state_options = np.delete(state_options, current_state)
+            next_state_weights = intensity_mat[current_state, next_state_options] / intensity_mat[
+                current_state, current_state]
+            current_state = np.random.choice(a=next_state_options, size=1, p=next_state_weights).item()
+            t_current = t_current + t_jump + 1
+
+        i += 1
+
+    # delayed_iCGM[state == 1] = generate_spurious_bg_v(true_matrix[state == 1])
+    delayed_iCGM[state == 1] = np.array([generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]])
+
+    delayed_iCGM[state == 2] = np.nan
+    # delayed_iCGM[state == 2] = 50
+
     # capture the individual sensor characertistics for future simulation
     ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
     ind_sensor_properties["initial_bias"] = initial_bias
@@ -210,6 +263,11 @@ def generate_icgm_sensors(
     ind_sensor_properties["bias_norm_factor"] = norm_factor
     ind_sensor_properties["noise_coefficient"] = noise_coefficient
     ind_sensor_properties["delay"] = delay
+    ind_sensor_properties["avg_normal_time"] = avg_normal_time
+    ind_sensor_properties["avg_missing_time"] = avg_missing_time
+    ind_sensor_properties["avg_spurious_time"] = avg_spurious_time
+    ind_sensor_properties["p_spurious_missing"] = p_spurious_missing
+    ind_sensor_properties["p_normal_to_missing"] = p_normal_to_missing
     ind_sensor_properties["random_seed"] = random_seed
 
     return delayed_iCGM, ind_sensor_properties
