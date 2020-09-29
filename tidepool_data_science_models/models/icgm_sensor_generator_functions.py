@@ -153,7 +153,7 @@ def generate_icgm_sensors(
     avg_missing_time=2 * 60,
     avg_spurious_time=10,
     p_spurious_missing=0.8,
-    p_normal_to_missing=0.95,
+    p_normal_missing=0.95,
     random_seed=0,
 ):
     # set a random seed for reproducibility
@@ -218,8 +218,9 @@ def generate_icgm_sensors(
         avg_spurious_steps = avg_spurious_time / 5
 
         # States: 0: Normal, 1: Missing, 2: Spurious
+        # Gillespie algorithm
         intensity_mat = np.array(
-            [[1 / avg_normal_steps, p_normal_to_missing / avg_normal_steps, (1 - p_normal_to_missing) / avg_normal_steps],
+            [[1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
              [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
              [(1 - p_spurious_missing) / avg_spurious_steps, p_spurious_missing / avg_spurious_steps,
               1 / avg_spurious_steps]])
@@ -268,7 +269,7 @@ def generate_icgm_sensors(
         ind_sensor_properties["avg_missing_time"] = avg_missing_time
         ind_sensor_properties["avg_spurious_time"] = avg_spurious_time
         ind_sensor_properties["p_spurious_missing"] = p_spurious_missing
-        ind_sensor_properties["p_normal_to_missing"] = p_normal_to_missing
+        ind_sensor_properties["p_normal_missing"] = p_normal_missing
     ind_sensor_properties["random_seed"] = random_seed
 
     return delayed_iCGM, ind_sensor_properties
