@@ -132,8 +132,9 @@ def generate_spurious_bg(true_bg_value):
         low_options = np.arange(71, true_bg_value * 0.6)
         high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
     else:
-        low_options = np.arange(40, 401)
-        high_options = np.arange(0,0)
+        #todo add 40% difference
+        low_options = np.arange(40, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
 
     return(np.random.choice(np.concatenate([low_options, high_options]), 1).item())
 
