@@ -29,6 +29,7 @@ class iCGMSensorGenerator(object):
         use_g6_accuracy_in_loss=False,
         bias_type="percentage_of_value",
         bias_drift_type="random",
+        spurious_missing=True,
         avg_normal_time=24 * 60,
         avg_missing_time=60,
         p_spurious_missing=0.8,
@@ -83,9 +84,10 @@ class iCGMSensorGenerator(object):
         self.use_g6_accuracy_in_loss = use_g6_accuracy_in_loss
         self.bias_type = bias_type
         self.bias_drift_type = bias_drift_type
-        self.avg_normal_time = avg_normal_time,
-        self.avg_missing_time = avg_missing_time,
-        self.p_spurious_missing = p_spurious_missing,
+        self.spurious_missing = spurious_missing
+        self.avg_normal_time = avg_normal_time
+        self.avg_missing_time = avg_missing_time
+        self.p_spurious_missing = p_spurious_missing
         self.random_seed = random_seed
         self.verbose = verbose
         self.true_bg_trace = true_bg_trace
@@ -132,6 +134,7 @@ class iCGMSensorGenerator(object):
             sf.johnsonsu_icgm_sensor,
             self.johnson_parameter_search_range,
             args=(
+                self.spurious_missing,
                 self.avg_normal_time,
                 self.avg_missing_time,
                 self.p_spurious_missing,
@@ -186,6 +189,7 @@ class iCGMSensorGenerator(object):
             bias_drift_range=bias_drift_range,
             bias_drift_oscillations=bias_drift_oscillations,
             noise_coefficient=noise_coefficient,
+            spurious_missing=self.spurious_missing,
             avg_spurious_time=avg_spurious_time,
             p_spurious_missing=self.p_spurious_missing,
             avg_normal_time=self.avg_normal_time,

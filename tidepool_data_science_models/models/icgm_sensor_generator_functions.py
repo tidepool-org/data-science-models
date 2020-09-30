@@ -213,10 +213,6 @@ def generate_icgm_sensors(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
     if spurious_missing:
-        avg_normal_time = avg_normal_time[0]
-        avg_missing_time = avg_missing_time[0]
-        p_spurious_missing = p_spurious_missing[0]
-
         avg_normal_steps = avg_normal_time / 5
         avg_missing_steps = avg_missing_time / 5
         avg_spurious_steps = avg_spurious_time / 5
@@ -389,6 +385,7 @@ def upper_onesided_95p_CB_norm_dist(value):
 
 def johnsonsu_icgm_sensor(
     dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations, avg_spurious_time, p_normal_missing]
+    spurious_missing,
     avg_normal_time,
     avg_missing_time,
     p_spurious_missing,
@@ -433,7 +430,7 @@ def johnsonsu_icgm_sensor(
             bias_drift_oscillations=dist_params[7],
             noise_coefficient=dist_params[4],
             delay=delay,
-            spurious_missing=True,
+            spurious_missing=spurious_missing,
             avg_normal_time=avg_normal_time,
             avg_missing_time=avg_missing_time,
             avg_spurious_time=dist_params[8],
