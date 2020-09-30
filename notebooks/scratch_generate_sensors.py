@@ -1,22 +1,11 @@
-#%%
-# import copy
-from tidepool_data_science_simulator.models.patient_for_icgm_sensitivity_analysis import VirtualPatientISA
-from tidepool_data_science_simulator.makedata.scenario_parser import ScenarioParserCSV
-from tidepool_data_science_simulator.models.pump import ContinuousInsulinPump
-from tidepool_data_science_models.models.simple_metabolism_model import SimpleMetabolismModel
-from tidepool_data_science_simulator.models.controller import LoopController
-from tidepool_data_science_simulator.models.simulation import Simulation
-from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
-import time
-import os
-import datetime
-from tidepool_data_science_simulator.visualization.sim_viz import plot_sim_results
 import numpy as np
-#%%
-n_sensors = 10
-true_bg_trace = np.arange(40, 140)
-# true_bg_trace = sim_parser.patient_glucose_history.bg_values
-sensor_generator.fit(true_bg_trace)
-sensor_generator = iCGMSensorGenerator(batch_training_size=1)
+from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
 
-sensor_generator.icgm_traces[0]
+n_sensors = 3
+true_bg_trace = np.tile(np.concatenate([np.arange(60, 201), np.flip(np.arange(60, 201))]), 10)
+sensor_generator = iCGMSensorGenerator(batch_training_size=1)
+sensor_generator.fit(true_bg_trace)
+sensors = sensor_generator.generate_sensors(n_sensors, sensor_start_datetime=0)
+print(sensor_generator.icgm_traces[0])
+
+np.isnan(sensor_generator.icgm_traces).sum()

@@ -213,6 +213,10 @@ def generate_icgm_sensors(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
     if spurious_missing:
+        avg_normal_time = avg_normal_time[0]
+        avg_missing_time = avg_missing_time[0]
+        p_spurious_missing = p_spurious_missing[0]
+
         avg_normal_steps = avg_normal_time / 5
         avg_missing_steps = avg_missing_time / 5
         avg_spurious_steps = avg_spurious_time / 5
@@ -384,7 +388,10 @@ def upper_onesided_95p_CB_norm_dist(value):
 
 
 def johnsonsu_icgm_sensor(
-    dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations]
+    dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations, avg_spurious_time, p_normal_missing]
+    avg_normal_time,
+    avg_missing_time,
+    p_spurious_missing,
     true_bg_trace,
     icgm_special_controls=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],
     n_sensors=100,
@@ -426,7 +433,13 @@ def johnsonsu_icgm_sensor(
             bias_drift_oscillations=dist_params[7],
             noise_coefficient=dist_params[4],
             delay=delay,
-            random_seed=random_seed,
+            spurious_missing=True,
+            avg_normal_time=avg_normal_time,
+            avg_missing_time=avg_missing_time,
+            avg_spurious_time=dist_params[8],
+            p_spurious_missing=p_spurious_missing,
+            p_normal_missing=dist_params[9],
+            random_seed=random_seed
         )
 
         df = preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
@@ -1229,6 +1242,13 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
+    AST_MIN=5,
+    AST_MAX=30,
+    AST_STEP=5,
+    PSM_MIN=0,
+    PSM_MAX=0.75,
+    PSM_STEP=0.25
+
 ):
 
     # for completley positive bias
@@ -1304,6 +1324,9 @@ def get_search_range(
         slice(
             BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
         ),  # bias_drift_oscillations
+        slice(AST_MIN, AST_MAX, AST_STEP), # avg_spurious_time,
+        slice(PSM_MIN, PSM_MAX, PSM_STEP), # p_spurious_missing
+
     )
 
     input_names = [
@@ -1321,6 +1344,12 @@ def get_search_range(
         "NOISE_MIN",
         "NOISE_MAX",
         "NOISE_STEP",
+        "AST_MIN",
+        "AST_MAX",
+        "AST_STEP",
+        "PSM_MIN",
+        "PSM_MAX",
+        "PSM_STEP",
     ]
 
     input_df = pd.DataFrame(
@@ -1339,6 +1368,12 @@ def get_search_range(
             NOISE_MIN,
             NOISE_MAX,
             NOISE_STEP,
+            AST_MIN,
+            AST_MAX,
+            AST_STEP,
+            PSM_MIN,
+            PSM_MAX,
+            PSM_STEP
         ],
         columns=["icgmSensorResults"],
         index=input_names,

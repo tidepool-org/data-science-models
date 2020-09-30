@@ -29,6 +29,9 @@ class iCGMSensorGenerator(object):
         use_g6_accuracy_in_loss=False,
         bias_type="percentage_of_value",
         bias_drift_type="random",
+        avg_normal_time=24 * 60,
+        avg_missing_time=60,
+        p_spurious_missing=0.8,
         random_seed=0,
         verbose=False,
         true_bg_trace=None,
@@ -47,6 +50,13 @@ class iCGMSensorGenerator(object):
             Type of overall bias used which defines the normalization factor
         bias_drift_type : str
             Type of drift used in the sensor bias (random, linear, none)
+        avg_normal_time : positive float
+            Average time per "normal" sensor behavior event
+        avg_missing_time : positive float
+            Average time per "missing" sensor behavior event
+        p_spurious_missing : float between 0 and 1
+            Probability of transitioning from a spurious event to a missing event
+            (1 - probability of transitioning from a missing event to a spurious event)
         random_seed : int
             Random seed used throughout generator for reproducible sensors and values
         verbose : bool
@@ -73,6 +83,9 @@ class iCGMSensorGenerator(object):
         self.use_g6_accuracy_in_loss = use_g6_accuracy_in_loss
         self.bias_type = bias_type
         self.bias_drift_type = bias_drift_type
+        self.avg_normal_time = avg_normal_time,
+        self.avg_missing_time = avg_missing_time,
+        self.p_spurious_missing = p_spurious_missing,
         self.random_seed = random_seed
         self.verbose = verbose
         self.true_bg_trace = true_bg_trace
@@ -119,6 +132,9 @@ class iCGMSensorGenerator(object):
             sf.johnsonsu_icgm_sensor,
             self.johnson_parameter_search_range,
             args=(
+                self.avg_normal_time,
+                self.avg_missing_time,
+                self.p_spurious_missing,
                 true_bg_trace,
                 self.sc_thresholds,
                 self.batch_training_size,
@@ -153,6 +169,8 @@ class iCGMSensorGenerator(object):
             bias_drift_range_min,
             bias_drift_range_max,
             bias_drift_oscillations,
+            avg_spurious_time,
+            p_normal_missing
         ) = self.dist_params
 
         bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
@@ -161,13 +179,18 @@ class iCGMSensorGenerator(object):
         # Convert to a generate_sensor(global_params) --> Sensor(obj)
         self.icgm_traces, self.individual_sensor_properties = sf.generate_icgm_sensors(
             self.true_bg_trace,
-            dist_params=self.dist_params[:4],
+            dist_params=[a, b, mu, sigma],
             n_sensors=n_sensors,
             bias_type=self.bias_type,
             bias_drift_type=self.bias_drift_type,
             bias_drift_range=bias_drift_range,
             bias_drift_oscillations=bias_drift_oscillations,
             noise_coefficient=noise_coefficient,
+            avg_spurious_time=avg_spurious_time,
+            p_spurious_missing=self.p_spurious_missing,
+            avg_normal_time=self.avg_normal_time,
+            avg_missing_time=self.avg_missing_time,
+            p_normal_missing=p_normal_missing,
             delay=self.delay,
             random_seed=self.random_seed,
         )
