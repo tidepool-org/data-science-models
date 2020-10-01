@@ -29,7 +29,7 @@ class iCGMSensorGenerator(object):
         use_g6_accuracy_in_loss=False,
         bias_type="percentage_of_value",
         bias_drift_type="random",
-        spurious_missing=True,
+        spurious_missing=False,
         avg_normal_time=24 * 60,
         avg_missing_time=60,
         p_spurious_missing=0.8,
@@ -51,6 +51,8 @@ class iCGMSensorGenerator(object):
             Type of overall bias used which defines the normalization factor
         bias_drift_type : str
             Type of drift used in the sensor bias (random, linear, none)
+        spurious_missing : bool
+            Whether or not to simulate spurious and missing values
         avg_normal_time : positive float
             Average time per "normal" sensor behavior event
         avg_missing_time : positive float
