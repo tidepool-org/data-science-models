@@ -1249,10 +1249,10 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
-    AST_MIN=5,
+    AST_MIN=5, # Average Spurious Time (AST)
     AST_MAX=30,
     AST_STEP=5,
-    PSM_MIN=0,
+    PSM_MIN=0, # Probability of transitioning from Spurious to Missing (1 - P of trans from Spurious to Normal)
     PSM_MAX=0.75,
     PSM_STEP=0.25
 
