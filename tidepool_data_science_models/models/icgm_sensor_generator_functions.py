@@ -219,6 +219,7 @@ def generate_icgm_sensors(
 
         # States: 0: Normal, 1: Missing, 2: Spurious
         # Gillespie algorithm
+        # intensity matrix is analogous to Markov transition matrix
         intensity_mat = np.array(
             [[1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
              [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
@@ -230,22 +231,31 @@ def generate_icgm_sensors(
 
         for i in range(0, n_sensors):
             t_current = 0
+            # Each sensor starts in normal state
             current_state = 0
 
             while t_current < iCGM.shape[1]:
+                # Generate time spent in current state from exponential distribution with parameter from the diagonal
+                # of intensity matrix. This is the time of the next "jump."
                 t_jump = np.random.exponential(1 / intensity_mat[current_state, current_state], 1).astype(int).item()
+                # Fill in time until jump with current state
                 state[i, t_current:t_current + t_jump] = current_state
 
+                # Sample next state (after current state)
                 next_state_options = np.delete(state_options, current_state)
                 next_state_weights = intensity_mat[current_state, next_state_options] / intensity_mat[
                     current_state, current_state]
+
+                # Make the state and time jump
                 current_state = np.random.choice(a=next_state_options, size=1, p=next_state_weights).item()
                 t_current = t_current + t_jump + 1
 
             i += 1
 
+        # Create spurious values
         delayed_iCGM[state == 1] = np.array([generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]])
 
+        # Create missing values
         delayed_iCGM[state == 2] = np.nan
 
     # capture the individual sensor characertistics for future simulation
