@@ -101,6 +101,7 @@ class iCGMSensorGenerator(object):
         self.batch_sensor_brute_search_results = None
         self.batch_sensor_properties = None
         self.dist_params = None
+        self.loss_of_best_search = None
 
         return
 
@@ -142,6 +143,7 @@ class iCGMSensorGenerator(object):
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
         self.dist_params = self.batch_sensor_brute_search_results[0]
+        self.loss_of_best_search = self.batch_sensor_brute_search_results[1]
 
         return
 
