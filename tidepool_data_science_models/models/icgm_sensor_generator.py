@@ -29,6 +29,7 @@ class iCGMSensorGenerator(object):
         use_g6_accuracy_in_loss=False,
         bias_type="percentage_of_value",
         bias_drift_type="random",
+        max_number_of_spurious_events_per_10_days=0,
         random_seed=0,
         verbose=False,
         true_bg_trace=None,
@@ -42,11 +43,13 @@ class iCGMSensorGenerator(object):
         sc_thresholds : float array
             The 7 special control thresholds A-G
         use_g6_accuracy_in_loss : bool
-            Whether or not to use the G6 accuracy loss during  fit
+            Whether or not to use the G6 accuracy loss during fit
         bias_type : str
             Type of overall bias used which defines the normalization factor
         bias_drift_type : str
             Type of drift used in the sensor bias (random, linear, none)
+        max_number_of_spurious_events_per_10_days : int
+            Defaults to no (0) spurious events
         random_seed : int
             Random seed used throughout generator for reproducible sensors and values
         verbose : bool
@@ -73,6 +76,7 @@ class iCGMSensorGenerator(object):
         self.use_g6_accuracy_in_loss = use_g6_accuracy_in_loss
         self.bias_type = bias_type
         self.bias_drift_type = bias_drift_type
+        self.max_number_of_spurious_events_per_10_days = max_number_of_spurious_events_per_10_days
         self.random_seed = random_seed
         self.verbose = verbose
         self.true_bg_trace = true_bg_trace
@@ -85,7 +89,9 @@ class iCGMSensorGenerator(object):
         else:
             self.delay = 10
 
-        self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range()
+        self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range(
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX=max_number_of_spurious_events_per_10_days
+        )
 
         # set the random seed for reproducibility
         np.random.seed(seed=random_seed)
@@ -153,6 +159,7 @@ class iCGMSensorGenerator(object):
             bias_drift_range_min,
             bias_drift_range_max,
             bias_drift_oscillations,
+            number_of_spurious_events_per_10_days,
         ) = self.dist_params
 
         bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
@@ -168,6 +175,7 @@ class iCGMSensorGenerator(object):
             bias_drift_range=bias_drift_range,
             bias_drift_oscillations=bias_drift_oscillations,
             noise_coefficient=noise_coefficient,
+            number_of_spurious_events_per_10_days=number_of_spurious_events_per_10_days,
             delay=self.delay,
             random_seed=self.random_seed,
         )

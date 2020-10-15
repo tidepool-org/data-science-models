@@ -253,7 +253,9 @@ def generate_icgm_sensors(
         n_icgm_data_points = true_matrix_shape[1]
 
         state = np.zeros(shape=true_matrix_shape, dtype=np.int)
-        spurious_index = np.random.randint(0, n_icgm_data_points, (n_sensors, number_of_spurious_events_per_10_days))
+        spurious_index = np.random.randint(
+            0, n_icgm_data_points, (n_sensors, int(number_of_spurious_events_per_10_days))
+        )
         for s in range(n_sensors):
             state[s, spurious_index[s, :]] = 1
 
@@ -424,6 +426,8 @@ def johnsonsu_icgm_sensor(
         loss = 10000
     else:
 
+        dist_params[8] = int(np.round(dist_params[8]))
+
         icgm_traces, _ = generate_icgm_sensors(
             true_bg_trace,
             dist_params=dist_params[:4],
@@ -434,6 +438,7 @@ def johnsonsu_icgm_sensor(
             bias_drift_oscillations=dist_params[7],
             noise_coefficient=dist_params[4],
             delay=delay,
+            number_of_spurious_events_per_10_days=dist_params[8],
             random_seed=random_seed,
         )
 
@@ -1237,6 +1242,9 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN=0,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX=1,
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS=5,
 ):
 
     # for completley positive bias
@@ -1300,6 +1308,21 @@ def get_search_range(
         find_johnson_params, perc_points_40_70, icgm_errors_40_70, bounds=a_b_mu_sigma_bounds
     )
 
+    # limit the number of spurious steps by NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS (defaults to 5)
+    spurious_step = np.round(
+        np.max(
+            [
+                (
+                    (NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX - NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN)
+                    / NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS
+                ),
+                1,
+            ]
+        )
+    )
+
+    spurious_range_max = NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX + spurious_step
+
     # set the search grid ranges
     rranges = (
         slice(a_init - SEARCH_SPAN, a_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
@@ -1309,9 +1332,8 @@ def get_search_range(
         slice(NOISE_MIN, NOISE_MAX, NOISE_STEP),  # noise slice
         slice(BIAS_DRIFT_MIN, 1, BIAS_DRIFT_STEP),  # bias_drift_range_min
         slice(1, BIAS_DRIFT_MAX, BIAS_DRIFT_STEP),  # bias_drift_range_max
-        slice(
-            BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
-        ),  # bias_drift_oscillations
+        slice(BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP),
+        slice(NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN, spurious_range_max, spurious_step),
     )
 
     input_names = [
@@ -1329,6 +1351,9 @@ def get_search_range(
         "NOISE_MIN",
         "NOISE_MAX",
         "NOISE_STEP",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS",
     ]
 
     input_df = pd.DataFrame(
@@ -1347,6 +1372,9 @@ def get_search_range(
             NOISE_MIN,
             NOISE_MAX,
             NOISE_STEP,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS,
         ],
         columns=["icgmSensorResults"],
         index=input_names,
