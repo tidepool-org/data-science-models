@@ -96,7 +96,6 @@ for r in range(10):
     plt.show()
 
 # check to make sure that iCGM criteria is met
-
 """
 (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above 180 mg/dL.
 (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read less than 70 mg/dL.
@@ -109,3 +108,13 @@ for s in range(n_sensors):
 
     gt_180_mask = icgm_sensor > 180
     assert np.sum(true_bg_trace[gt_180_mask] < 70) == 0
+
+# %% test to make sure that iCGM fit still works before applying spurious events
+batch_training_size = 30
+sensor_generator_1 = iCGMSensorGenerator(batch_training_size=batch_training_size, verbose=True)
+sensor_generator_1.fit(true_bg_trace)
+sensor_generator_1.generate_sensors(batch_training_size, sensor_start_datetime=0)
+for b in range(batch_training_size):
+    plt.plot(true_bg_trace)
+    plt.plot(sensor_generator_1.icgm_traces[b])
+    plt.show()
