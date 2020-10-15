@@ -281,6 +281,7 @@ def generate_icgm_sensors(
     ind_sensor_properties["bias_norm_factor"] = norm_factor
     ind_sensor_properties["noise_coefficient"] = noise_coefficient
     ind_sensor_properties["delay"] = delay
+    ind_sensor_properties["number_of_spurious_events_per_10_days"] = number_of_spurious_events_per_10_days
     ind_sensor_properties["random_seed"] = random_seed
 
     return delayed_iCGM, ind_sensor_properties
