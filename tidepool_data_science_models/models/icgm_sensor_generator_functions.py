@@ -11,6 +11,7 @@ Created on Mon Nov 18 11:03:31 2019
 
 # %% REQUIRED LIBRARIES
 import sys
+import warnings
 import pandas as pd
 import numpy as np
 from math import sqrt
@@ -407,8 +408,10 @@ def johnsonsu_icgm_sensor(
 ):
 
     # skip distributions that are unrealistic
+    warnings.filterwarnings("ignore", message="overflow encountered in sinh")
     dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
     dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    warnings.filterwarnings("default")
 
     dist_range = np.nan
     if not np.isinf(dist_min):
@@ -510,6 +513,7 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
     bg_df["absErrorPercent"] = abs_percent_error
 
     """ precalculate bg value bins """
+    warnings.filterwarnings("ignore", message="invalid value encountered")
     # measurement range
     # subtract/add 0.5 to account for rounding (e.g., 39.5 = 40)
     bg_df["withinMeasRange"] = (icgm_values >= icgm_min) & (icgm_values < icgm_max)
@@ -607,6 +611,8 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
 
     # ysi rate bins
     bg_df["ysiRateBins"] = define_bins(ysi_rates, bin_values, bin_names)
+
+    warnings.filterwarnings("default")
 
     """ calculate time bins """
     # calculate the day of the sensor
