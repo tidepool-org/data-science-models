@@ -10,9 +10,10 @@ true_df, _ = create_dataset(
     max_value=400,
     time_interval=5,
     flat_value=np.nan,
-    oscillations=10,
+    oscillations=5,
     random_seed=0,
 )
+
 true_bg_trace = true_df["value"].values
 plt.plot(true_bg_trace)
 plt.show()
@@ -37,7 +38,7 @@ icgm_trace, ind_sensor_properties = generate_icgm_sensors(
 plt.plot(icgm_trace.T)
 plt.show()
 
-# visually confirm the number of spurious events is correct and that the random seed puts the spurious event in different locations
+# %% visually confirm the number of spurious events is correct and that the random seed puts the spurious event in different locations
 number_of_spurious_events_per_10_days = 1
 
 for r in range(10):
@@ -57,7 +58,7 @@ for r in range(10):
     plt.plot(icgm_trace.T)
     plt.show()
 
-# visually confirm the number of spurious events is correct
+# %% visually confirm the number of spurious events is correct
 for r in range(10):
     icgm_trace, ind_sensor_properties = generate_icgm_sensors(
         true_bg_trace,
@@ -76,7 +77,7 @@ for r in range(10):
     plt.show()
 
 
-# visually confirm the number of spurious events per sensor is correct
+# %% visually confirm the number of spurious events per sensor is correct
 for r in range(10):
     n_sensors = r + 1
     icgm_trace, ind_sensor_properties = generate_icgm_sensors(
@@ -95,7 +96,7 @@ for r in range(10):
     plt.plot(icgm_trace.T)
     plt.show()
 
-# check to make sure that iCGM criteria is met
+# %% check to make sure that iCGM criteria is met
 """
 (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above 180 mg/dL.
 (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read less than 70 mg/dL.
@@ -118,3 +119,33 @@ for b in range(batch_training_size):
     plt.plot(true_bg_trace)
     plt.plot(sensor_generator_1.icgm_traces[b])
     plt.show()
+
+# %% 1 spurious event
+batch_training_size = 30
+sensor_generator_2 = iCGMSensorGenerator(
+    batch_training_size=batch_training_size,
+    max_number_of_spurious_events_per_10_days=20,
+    verbose=True
+)
+sensor_generator_2.fit(true_bg_trace)
+sensor_generator_2.generate_sensors(batch_training_size, sensor_start_datetime=0)
+for b in range(batch_training_size):
+    plt.plot(true_bg_trace)
+    plt.plot(sensor_generator_2.icgm_traces[b])
+    plt.show()
+
+
+# %% check to make sure that iCGM criteria is met
+"""
+(H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above 180 mg/dL.
+(I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read less than 70 mg/dL.
+"""
+icgm_traces = sensor_generator_2.icgm_traces
+for s in range(n_sensors):
+    icgm_sensor = icgm_traces[s, :]
+
+    lt_70_mask = icgm_sensor < 70
+    assert np.sum(true_bg_trace[lt_70_mask] > 180) == 0
+
+    gt_180_mask = icgm_sensor > 180
+    assert np.sum(true_bg_trace[gt_180_mask] < 70) == 0
