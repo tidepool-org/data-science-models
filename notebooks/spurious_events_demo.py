@@ -114,24 +114,20 @@ for s in range(n_sensors):
 batch_training_size = 30
 sensor_generator_1 = iCGMSensorGenerator(batch_training_size=batch_training_size, verbose=True)
 sensor_generator_1.fit(true_bg_trace)
-sensor_generator_1.generate_sensors(batch_training_size, sensor_start_datetime=0)
 for b in range(batch_training_size):
     plt.plot(true_bg_trace)
-    plt.plot(sensor_generator_1.icgm_traces[b])
+    plt.plot(sensor_generator_1.icgm_traces_used_in_training[b])
     plt.show()
 
 # %% 1 spurious event
 batch_training_size = 30
 sensor_generator_2 = iCGMSensorGenerator(
-    batch_training_size=batch_training_size,
-    max_number_of_spurious_events_per_10_days=20,
-    verbose=True
+    batch_training_size=batch_training_size, max_number_of_spurious_events_per_10_days=20, verbose=True
 )
 sensor_generator_2.fit(true_bg_trace)
-sensor_generator_2.generate_sensors(batch_training_size, sensor_start_datetime=0)
 for b in range(batch_training_size):
     plt.plot(true_bg_trace)
-    plt.plot(sensor_generator_2.icgm_traces[b])
+    plt.plot(sensor_generator_2.icgm_traces_used_in_training[b])
     plt.show()
 
 
@@ -140,7 +136,7 @@ for b in range(batch_training_size):
 (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above 180 mg/dL.
 (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read less than 70 mg/dL.
 """
-icgm_traces = sensor_generator_2.icgm_traces
+icgm_traces = sensor_generator_2.icgm_traces_used_in_training
 for s in range(n_sensors):
     icgm_sensor = icgm_traces[s, :]
 

@@ -9,11 +9,13 @@ The Dexcom G6 Specifications in this file are publicly available from:
 """
 
 # %% Libraries
+import copy
 import numpy as np
 from scipy.optimize import brute, fmin
 from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
 import multiprocessing
+
 multiprocessing.set_start_method("fork")
 
 
@@ -101,7 +103,12 @@ class iCGMSensorGenerator(object):
         self.batch_sensor_brute_search_results = None
         self.batch_sensor_properties = None
         self.dist_params = None
+        self.icgm_traces_used_in_training = None
+        self.icgm_special_controls_accuracy_table = None
+        self.g6_loss = None
+        self.g6_table = None
         self.loss_of_best_search = None
+        self.percent_pass = None
 
         return
 
@@ -143,7 +150,27 @@ class iCGMSensorGenerator(object):
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
         self.dist_params = self.batch_sensor_brute_search_results[0]
-        self.loss_of_best_search = self.batch_sensor_brute_search_results[1]
+
+        # %% add in check that optimal result passed
+        self.generate_sensors(self.batch_training_size, sensor_start_datetime=0)
+        self.icgm_traces_used_in_training = copy.deepcopy(self.icgm_traces)
+        self.icgm_traces = None
+
+        temp_df = sf.preprocess_data(
+            true_bg_trace, self.icgm_traces_used_in_training, icgm_range=[40, 400], ysi_range=[0, 900]
+        )
+
+        self.icgm_special_controls_accuracy_table = sf.calc_icgm_sc_table(temp_df, "generic")
+
+        if self.use_g6_accuracy_in_loss:
+            self.g6_loss, self.g6_table = sf.calc_dexcom_loss(temp_df, self.batch_training_size)
+
+        else:
+            self.g6_loss, self.g6_table = np.nan, np.nan
+
+        self.loss_of_best_search, self.percent_pass = sf.calc_icgm_special_controls_loss(
+            self.icgm_special_controls_accuracy_table, self.g6_loss
+        )
 
         return
 
