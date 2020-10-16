@@ -23,8 +23,14 @@ for path in [save_percent_pass_path, save_accuracy_tables_path]:
 # Data frame to store percent pass results in
 percent_pass_df = pd.DataFrame(columns=['training_scenario_filename', 'percent_pass'])
 
+special_controls_not_passed_df = pd.DataFrame(columns=['training_scenario_filename', 'percent_pass_overall',
+                                                       'special_control_not_passed', 'icgmSpecialControls',
+                                                       'nPairs', 'icgmSensorResults'])
+
+icgm_sensor_results_df = pd.DataFrame(columns=['training_scenario_filename', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'])
+
 # Iterate through each scenario file, get batch sensors, and print/save desired output metrics
-for i, filename in enumerate(os.listdir(scenario_files_path)[0:50]):
+for i, filename in enumerate(os.listdir(scenario_files_path)[0:10]):
     print(i, filename)
 
     df = pd.read_csv(os.path.join(scenario_files_path, filename))
@@ -54,8 +60,30 @@ for i, filename in enumerate(os.listdir(scenario_files_path)[0:50]):
     print(accuracy_table_df)
     accuracy_table_df.to_csv(path_or_buf=os.path.join(save_accuracy_tables_path, "accuracy_table_"+filename+".csv"), index=True)
 
-# Save the overall percent pass dataframe
+    # Add icgmSensorResults to overall table
+    values_to_add = {'training_scenario_filename': filename}
+    for special_control in accuracy_table_df.index:
+        values_to_add[special_control] = accuracy_table_df['icgmSensorResults'][special_control]
+    icgm_sensor_results_df = icgm_sensor_results_df.append({}, ignore_index=True)
+
+    # If any of the special controls don't pass, add this to dataframe of special controls that didn't pass
+    if percent_pass != 100:
+        accuracy_table_df = accuracy_table_df.reset_index(name="special_control")
+        accuracy_table_subset_df = accuracy_table_df[accuracy_table_df['icgmSensorResults'] < accuracy_table_df['icgmSpecialControls']]
+        for ind in accuracy_table_subset_df.index:
+
+            special_controls_not_passed_df = special_controls_not_passed_df.append({
+                'training_scenario_filename': filename,
+                'percent_pass_overall': percent_pass,
+                'special_control_not_passed': accuracy_table_subset_df['special_control'][ind],
+                'icgmSpecialControls':  accuracy_table_subset_df['icgmSpecialControls'][ind],
+                'npairs': accuracy_table_subset_df['npairs'][ind],
+                'icgmSensorResults': accuracy_table_subset_df['icgmSensorResults'][ind]}, ignore_index=True)
+
+
+# Save the overall percent pass dataframe and the special controls not passed dataframe
 percent_pass_df.to_csv(path_or_buf=os.path.join(save_percent_pass_path, "percent_pass_"+scenario_folder_name+".csv"), index=True)
 
+special_controls_not_passed_df.to_csv(path_or_buf=os.path.join(save_percent_pass_path, "special_controls_not_passed_"+scenario_folder_name+".csv"), index=False)
 
 #sensor_generator.g6_table
