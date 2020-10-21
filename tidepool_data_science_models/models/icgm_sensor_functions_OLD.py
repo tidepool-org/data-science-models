@@ -556,7 +556,10 @@ def calc_percent_within_mgdL(df, within_threshold):
     within_mgdL = bt_40_70 & (df["within+/-{}mg/dL".format(within_threshold)])
     n_within_mgdL = within_mgdL.sum()
     total_within_mgdL = bt_40_70.sum()
-    percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
+    if total_within_mgdL == 0:
+        percent_within_mgdL = np.nan
+    else:
+        percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
 
     return percent_within_mgdL, n_within_mgdL, total_within_mgdL
 
@@ -571,7 +574,10 @@ def calc_percent_within_percent(df, within_threshold, icgm_range="70-400"):
 
     n_within_percent = within_percent.sum()
     total_within_percent = i_range.sum()
-    percent_within_percent = 100 * n_within_percent / total_within_percent
+    if total_within_percent == 0:
+        percent_within_percent = np.nan
+    else:
+        percent_within_percent = 100 * n_within_percent / total_within_percent
 
     return percent_within_percent, n_within_percent, total_within_percent
 
@@ -585,8 +591,12 @@ def calc_percent_within(df, within_threshold):
     n_meet_criterion = n_within_mgdL + n_within_percent
     total_all = total_within_mgdL + total_within_percent
 
-    percent_within = 100 * n_meet_criterion / total_all
-    percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
+    if total_all == 0:
+        percent_within = np.nan
+        percent_within_95_lower_bound = np.nan
+    else:
+        percent_within = 100 * n_meet_criterion / total_all
+        percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
 
     return percent_within, percent_within_95_lower_bound
 

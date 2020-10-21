@@ -429,8 +429,12 @@ def johnsonsu_icgm_sensor(
     ):
         loss = 10000
     else:
-
-        dist_params[8] = int(np.round(dist_params[8]))
+        # this is the condition of number of spurious events = 0
+        print(dist_params)
+        if len(dist_params) < 9:
+            dist_params = np.append(dist_params, 0)
+        else:
+            dist_params[8] = int(np.round(dist_params[8]))
 
         icgm_traces, _ = generate_icgm_sensors(
             true_bg_trace,
@@ -636,7 +640,10 @@ def calc_percent_within_mgdL(df, within_threshold):
     within_mgdL = bt_40_70 & (df["within+/-{}mg/dL".format(within_threshold)])
     n_within_mgdL = within_mgdL.sum()
     total_within_mgdL = bt_40_70.sum()
-    percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
+    if total_within_mgdL == 0:
+        percent_within_mgdL = np.nan
+    else:
+        percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
 
     return percent_within_mgdL, n_within_mgdL, total_within_mgdL
 
@@ -651,7 +658,10 @@ def calc_percent_within_percent(df, within_threshold, icgm_range="70-400"):
 
     n_within_percent = within_percent.sum()
     total_within_percent = i_range.sum()
-    percent_within_percent = 100 * n_within_percent / total_within_percent
+    if total_within_percent == 0:
+        percent_within_percent = np.nan
+    else:
+        percent_within_percent = 100 * n_within_percent / total_within_percent
 
     return percent_within_percent, n_within_percent, total_within_percent
 
@@ -665,8 +675,12 @@ def calc_percent_within(df, within_threshold):
     n_meet_criterion = n_within_mgdL + n_within_percent
     total_all = total_within_mgdL + total_within_percent
 
-    percent_within = 100 * n_meet_criterion / total_all
-    percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
+    if total_all == 0:
+        percent_within = np.nan
+        percent_within_95_lower_bound = np.nan
+    else:
+        percent_within = 100 * n_meet_criterion / total_all
+        percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
 
     return percent_within, percent_within_95_lower_bound
 
@@ -1340,8 +1354,11 @@ def get_search_range(
         slice(BIAS_DRIFT_MIN, 1, BIAS_DRIFT_STEP),  # bias_drift_range_min
         slice(1, BIAS_DRIFT_MAX, BIAS_DRIFT_STEP),  # bias_drift_range_max
         slice(BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP),
-        slice(NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN, spurious_range_max, spurious_step),
     )
+
+    if NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX > 0:
+        spurious_slice = slice(NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN, spurious_range_max, spurious_step)
+        rranges = (*rranges, spurious_slice)
 
     input_names = [
         "SPECIAL_CONTROLS_CRITERIA",
@@ -1588,7 +1605,11 @@ def calculate_sensor_generator_tables(generator):
         "bias_drift_range_min",
         "bias_drift_range_max",
         "batch_bias_drift_oscillations",
+        "number_of_spurious_events_per_10_days",
     ]
+
+    if len(generator.dist_params) < 9:
+        generator.dist_params = np.append(generator.dist_params, 0)
 
     dist_df = pd.DataFrame(generator.dist_params, columns=["icgmSensorResults"], index=dist_param_names)
 

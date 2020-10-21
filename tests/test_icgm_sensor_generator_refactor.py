@@ -42,7 +42,7 @@ def test_refactor_default_state():
 
     icgm_sensor_generator = iCGMSensorGenerator(batch_training_size=3, true_dataset_name="48hours-sinusoid")
     icgm_sensor_generator.fit(true_bg_trace=test_bg_trace)
-    sensors = icgm_sensor_generator.generate_sensors(sensor_start_datetime= TEST_DATETIME, n_sensors=3)
+    sensors = icgm_sensor_generator.generate_sensors(sensor_start_datetime=TEST_DATETIME, n_sensors=3)
 
     refactored_icgm_traces = icgm_sensor_generator.icgm_traces
     refactored_individual_sensor_properties, refactored_batch_sensor_properties = sf.calculate_sensor_generator_tables(
@@ -50,8 +50,19 @@ def test_refactor_default_state():
     )
 
     assert np.array_equal(refactored_icgm_traces, original_icgm_traces)
-    assert refactored_individual_sensor_properties.equals(original_individual_sensor_properties)
-    assert refactored_batch_sensor_properties.equals(original_batch_sensor_properties)
+    assert refactored_individual_sensor_properties.drop(columns="number_of_spurious_events_per_10_days").equals(
+        original_individual_sensor_properties
+    )
+    refactored_batch_sensor_properties_removing_spurious_indices = refactored_batch_sensor_properties.drop(
+        [
+            "number_of_spurious_events_per_10_days",
+            "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN",
+            "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX",
+            "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS",
+        ]
+    )
+    assert refactored_batch_sensor_properties_removing_spurious_indices.equals(original_batch_sensor_properties)
+
 
 def test_generator_fails_without_fit():
 
@@ -105,9 +116,7 @@ def check_sensor_properties(sensor, sensor_properties):
 def test_sample_sensor_creation():
 
     sample_sensor, sample_sensor_properties = create_sample_sensor(
-        sensor_life_days=10,
-        time_index=0,
-        sensor_datetime=TEST_DATETIME
+        sensor_life_days=10, time_index=0, sensor_datetime=TEST_DATETIME
     )
     assert isinstance(sample_sensor, iCGMSensor)
     check_sensor_properties(sample_sensor, sample_sensor_properties)
@@ -116,9 +125,7 @@ def test_sample_sensor_creation():
     assert sample_sensor.sensor_life_days == 10
 
     sample_sensor, sample_sensor_properties = create_sample_sensor(
-        sensor_life_days=1,
-        time_index=287,
-        sensor_datetime=TEST_DATETIME
+        sensor_life_days=1, time_index=287, sensor_datetime=TEST_DATETIME
     )
     assert sample_sensor.time_index == 287
     assert sample_sensor.sensor_life_days == 1
@@ -127,9 +134,9 @@ def test_sample_sensor_creation():
 def test_invalid_sensor_creation():
     """Test to make sure that invalid starting time_indexs are thrownthe correct Exceptions"""
     with pytest.raises(Exception) as e:
-        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1,
-                                                                       time_index=288,
-                                                                       sensor_datetime=TEST_DATETIME)
+        sample_sensor, sample_sensor_properties = create_sample_sensor(
+            sensor_life_days=1, time_index=288, sensor_datetime=TEST_DATETIME
+        )
 
     # Reminder: Although there are 288 points / day, time_index starts at 0
     expected_exception_message = "Sensor time_index 288 outside of sensor life! "
@@ -137,9 +144,9 @@ def test_invalid_sensor_creation():
     assert expected_exception_message == received_exception_message
 
     with pytest.raises(Exception) as e:
-        sample_sensor, sample_sensor_properties = create_sample_sensor(sensor_life_days=1,
-                                                                       time_index=-1,
-                                                                       sensor_datetime=TEST_DATETIME)
+        sample_sensor, sample_sensor_properties = create_sample_sensor(
+            sensor_life_days=1, time_index=-1, sensor_datetime=TEST_DATETIME
+        )
     expected_exception_message = "Sensor time_index -1 outside of sensor life! "
     received_exception_message = str(e.value)
     assert expected_exception_message == received_exception_message
@@ -147,8 +154,7 @@ def test_invalid_sensor_creation():
 
 def test_invalid_sensor_prefill():
     """Sensor prefill should fail when prefilled data goes past the sensor expiration date"""
-    sample_sensor, sample_sensor_properties = create_sample_sensor(time_index=2879,
-                                                                   sensor_datetime=TEST_DATETIME)
+    sample_sensor, sample_sensor_properties = create_sample_sensor(time_index=2879, sensor_datetime=TEST_DATETIME)
 
     # original_sensor_state = copy.deepcopy(sample_sensor)
     prefill_true_bg_history = [100, 101, 102, 103, 104]
@@ -220,8 +226,7 @@ def test_get_loop_format():
         datetime.datetime(2020, 1, 1, 0, 5),
         datetime.datetime(2020, 1, 1, 0, 10),
         datetime.datetime(2020, 1, 1, 0, 15),
-        datetime.datetime(2020, 1, 1, 0, 20)
-
+        datetime.datetime(2020, 1, 1, 0, 20),
     ]
     expected_glucose_values = [400, 400, 94.0, 104.0, 102.0]  # NaNs are currently returned as 400s
     glucose_dates, glucose_values = sample_sensor.get_loop_inputs()
