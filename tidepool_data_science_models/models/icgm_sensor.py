@@ -266,5 +266,5 @@ class iCGMSensor(Sensor):
 
     def get_loop_inputs(self):
         """Get two arrays for dates and values, used for Loop input"""
-        loop_bg_values = [max(40, min(400, round(bg))) for bg in self.sensor_bg_history]
+        loop_bg_values = [max(40, min(400, np.round(bg))) for bg in self.sensor_bg_history]
         return self.datetime_history, loop_bg_values
