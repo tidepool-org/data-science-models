@@ -11,12 +11,14 @@ Created on Mon Nov 18 11:03:31 2019
 
 # %% REQUIRED LIBRARIES
 import sys
+import warnings
 import pandas as pd
 import numpy as np
 from math import sqrt
 from scipy.stats import johnsonsu
 from scipy.optimize import curve_fit
 import datetime
+
 # from pyloopkit.dose import DoseType
 
 # %% FUNCTIONS, CLASSES, AND CONSTANTS
@@ -125,6 +127,56 @@ def get_95percent_bounds(percent_values_within):
     return lower_bound, upper_bound
 
 
+def generate_spurious_bg(true_bg_value, icgm_range=(40, 400)):
+    # While it is possible for spurious events to result in values < 40 and > 400 mg/dL,
+    # these extreme values are outside of the device measurement range and therefore are not
+    # used in the calculation of meeting the iCGM specifications and will not be considered in this version.
+    minimum_icgm_value = icgm_range[0]
+    maximum_icgm_value = icgm_range[1]
+
+    if true_bg_value < 70:
+        """
+        The following iCGM special controls went into determining the value of the spurious events < 70:
+
+        (D) For all iCGM measurements less than 70 mg/dL, the percentage of iCGM measurements within +/-
+        40 mg/dL of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 98%.
+
+        (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above
+        180 mg/dL.
+        """
+        low_options = np.arange(minimum_icgm_value, true_bg_value - 40)
+        high_options = np.arange(true_bg_value + 40, 181)
+
+    elif true_bg_value > 180:
+        """
+        The following iCGM special controls went into determining the value of the spurious events > 180:
+
+        (F) For all iCGM measurements greater than 180 mg/dL, the percentage of iCGM measurements within
+        +/- 40% of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 99%.
+
+        (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read
+        less than 70 mg/dL.
+        """
+        low_options = np.arange(70, np.floor(true_bg_value * 0.6))
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), maximum_icgm_value)
+
+    # 70 to 180
+    else:
+        """
+        The following iCGM special controls went into determining the value of the spurious events 70 - 180:
+
+        (E) For all iCGM measurements from 70-180 mg/dL, the percentage of iCGM measurements within +/-
+        40% of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 99%.
+        """
+        low_options = np.arange(minimum_icgm_value, np.floor(true_bg_value * 0.6))
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), maximum_icgm_value)
+
+    return np.random.choice(np.concatenate([low_options, high_options]), 1).item()
+
+
 def generate_icgm_sensors(
     true_bg_trace,
     dist_params,  # [a, b, mu, sigma]
@@ -135,10 +187,10 @@ def generate_icgm_sensors(
     bias_drift_oscillations=0,  # opt for random drift (max of 2)
     noise_coefficient=0,  # (0 ~ 60dB, 5 ~ 36 dB, 10, 30 dB)
     delay=5,  # (suggest 0, 5, 10, 15)
+    number_of_spurious_events_per_10_days=0,
     random_seed=0,
 ):
     # set a random seed for reproducibility
-
     np.random.seed(seed=random_seed)
     true_matrix = np.tile(true_bg_trace, (n_sensors, 1))
 
@@ -189,10 +241,33 @@ def generate_icgm_sensors(
     #     iCGM = ((true_matrix + bias_matrix) * drift_multiplier) + noise
 
     # add delay or lag to the iCGM traces
-    delay_steps = np.int(np.round(delay / 5))
-    delayed_iCGM = np.insert(
-        values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
-    )
+    if delay > 0:
+        delay_steps = np.int(np.round(delay / 5))
+        delayed_iCGM = np.insert(
+            values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
+        )
+    else:
+        delayed_iCGM = iCGM
+
+
+    # add spurious events to the trace
+    # TODO: add in successive spurious events later, for now each spurious event is 5 minutes and can occur at any time
+    if number_of_spurious_events_per_10_days > 0:
+
+        true_matrix_shape = true_matrix.shape
+        n_icgm_data_points = true_matrix_shape[1]
+
+        state = np.zeros(shape=true_matrix_shape, dtype=np.int)
+        spurious_index = np.random.randint(
+            0, n_icgm_data_points, (n_sensors, int(number_of_spurious_events_per_10_days))
+        )
+        for s in range(n_sensors):
+            state[s, spurious_index[s, :]] = 1
+
+        # Add spurious values to the delayed icgm trace
+        delayed_iCGM[state == 1] = np.array(
+            [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]]
+        )
 
     # capture the individual sensor characertistics for future simulation
     ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
@@ -210,6 +285,7 @@ def generate_icgm_sensors(
     ind_sensor_properties["bias_norm_factor"] = norm_factor
     ind_sensor_properties["noise_coefficient"] = noise_coefficient
     ind_sensor_properties["delay"] = delay
+    ind_sensor_properties["number_of_spurious_events_per_10_days"] = number_of_spurious_events_per_10_days
     ind_sensor_properties["random_seed"] = random_seed
 
     return delayed_iCGM, ind_sensor_properties
@@ -337,8 +413,10 @@ def johnsonsu_icgm_sensor(
 ):
 
     # skip distributions that are unrealistic
+    warnings.filterwarnings("ignore", message="overflow encountered in sinh")
     dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
     dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    warnings.filterwarnings("default")
 
     dist_range = np.nan
     if not np.isinf(dist_min):
@@ -355,6 +433,11 @@ def johnsonsu_icgm_sensor(
     ):
         loss = 10000
     else:
+        # this is the condition of number of spurious events = 0
+        if len(dist_params) < 9:
+            dist_params = np.append(dist_params, 0)
+        else:
+            dist_params[8] = int(np.round(dist_params[8]))
 
         icgm_traces, _ = generate_icgm_sensors(
             true_bg_trace,
@@ -366,6 +449,7 @@ def johnsonsu_icgm_sensor(
             bias_drift_oscillations=dist_params[7],
             noise_coefficient=dist_params[4],
             delay=delay,
+            number_of_spurious_events_per_10_days=dist_params[8],
             random_seed=random_seed,
         )
 
@@ -437,6 +521,7 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
     bg_df["absErrorPercent"] = abs_percent_error
 
     """ precalculate bg value bins """
+    warnings.filterwarnings("ignore", message="invalid value encountered")
     # measurement range
     # subtract/add 0.5 to account for rounding (e.g., 39.5 = 40)
     bg_df["withinMeasRange"] = (icgm_values >= icgm_min) & (icgm_values < icgm_max)
@@ -535,6 +620,8 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
     # ysi rate bins
     bg_df["ysiRateBins"] = define_bins(ysi_rates, bin_values, bin_names)
 
+    warnings.filterwarnings("default")
+
     """ calculate time bins """
     # calculate the day of the sensor
     sensor_day = np.floor((np.arange(0, len(true_array)) / 288) + 1)
@@ -556,7 +643,10 @@ def calc_percent_within_mgdL(df, within_threshold):
     within_mgdL = bt_40_70 & (df["within+/-{}mg/dL".format(within_threshold)])
     n_within_mgdL = within_mgdL.sum()
     total_within_mgdL = bt_40_70.sum()
-    percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
+    if total_within_mgdL == 0:
+        percent_within_mgdL = np.nan
+    else:
+        percent_within_mgdL = 100 * n_within_mgdL / total_within_mgdL
 
     return percent_within_mgdL, n_within_mgdL, total_within_mgdL
 
@@ -571,7 +661,10 @@ def calc_percent_within_percent(df, within_threshold, icgm_range="70-400"):
 
     n_within_percent = within_percent.sum()
     total_within_percent = i_range.sum()
-    percent_within_percent = 100 * n_within_percent / total_within_percent
+    if total_within_percent == 0:
+        percent_within_percent = np.nan
+    else:
+        percent_within_percent = 100 * n_within_percent / total_within_percent
 
     return percent_within_percent, n_within_percent, total_within_percent
 
@@ -585,8 +678,12 @@ def calc_percent_within(df, within_threshold):
     n_meet_criterion = n_within_mgdL + n_within_percent
     total_all = total_within_mgdL + total_within_percent
 
-    percent_within = 100 * n_meet_criterion / total_all
-    percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
+    if total_all == 0:
+        percent_within = np.nan
+        percent_within_95_lower_bound = np.nan
+    else:
+        percent_within = 100 * n_meet_criterion / total_all
+        percent_within_95_lower_bound = lower_onesided_95p_CB_binomial(n_meet_criterion, total_all) * 100
 
     return percent_within, percent_within_95_lower_bound
 
@@ -1169,6 +1266,9 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN=0,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX=10,
+    NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS=5,
 ):
 
     # for completley positive bias
@@ -1232,6 +1332,21 @@ def get_search_range(
         find_johnson_params, perc_points_40_70, icgm_errors_40_70, bounds=a_b_mu_sigma_bounds
     )
 
+    # limit the number of spurious steps by NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS (defaults to 5)
+    spurious_step = np.round(
+        np.max(
+            [
+                (
+                    (NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX - NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN)
+                    / NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS
+                ),
+                1,
+            ]
+        )
+    )
+
+    spurious_range_max = NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX + spurious_step
+
     # set the search grid ranges
     rranges = (
         slice(a_init - SEARCH_SPAN, a_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
@@ -1241,10 +1356,12 @@ def get_search_range(
         slice(NOISE_MIN, NOISE_MAX, NOISE_STEP),  # noise slice
         slice(BIAS_DRIFT_MIN, 1, BIAS_DRIFT_STEP),  # bias_drift_range_min
         slice(1, BIAS_DRIFT_MAX, BIAS_DRIFT_STEP),  # bias_drift_range_max
-        slice(
-            BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
-        ),  # bias_drift_oscillations
+        slice(BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP),
     )
+
+    if NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX > 0:
+        spurious_slice = slice(NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN, spurious_range_max, spurious_step)
+        rranges = (*rranges, spurious_slice)
 
     input_names = [
         "SPECIAL_CONTROLS_CRITERIA",
@@ -1261,6 +1378,9 @@ def get_search_range(
         "NOISE_MIN",
         "NOISE_MAX",
         "NOISE_STEP",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX",
+        "NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS",
     ]
 
     input_df = pd.DataFrame(
@@ -1279,6 +1399,9 @@ def get_search_range(
             NOISE_MIN,
             NOISE_MAX,
             NOISE_STEP,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MIN,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX,
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS,
         ],
         columns=["icgmSensorResults"],
         index=input_names,
@@ -1485,7 +1608,11 @@ def calculate_sensor_generator_tables(generator):
         "bias_drift_range_min",
         "bias_drift_range_max",
         "batch_bias_drift_oscillations",
+        "number_of_spurious_events_per_10_days",
     ]
+
+    if len(generator.dist_params) < 9:
+        generator.dist_params = np.append(generator.dist_params, 0)
 
     dist_df = pd.DataFrame(generator.dist_params, columns=["icgmSensorResults"], index=dist_param_names)
 
