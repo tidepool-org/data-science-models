@@ -434,7 +434,6 @@ def johnsonsu_icgm_sensor(
         loss = 10000
     else:
         # this is the condition of number of spurious events = 0
-        print(dist_params)
         if len(dist_params) < 9:
             dist_params = np.append(dist_params, 0)
         else:
