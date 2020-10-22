@@ -10,6 +10,8 @@ The Dexcom G6 Specifications in this file are publicly available from:
 
 # %% Libraries
 import copy
+import datetime
+
 import numpy as np
 from scipy.optimize import brute, fmin
 from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
@@ -171,8 +173,57 @@ class iCGMSensorGenerator(object):
         self.loss_of_best_search, self.percent_pass = sf.calc_icgm_special_controls_loss(
             self.icgm_special_controls_accuracy_table, self.g6_loss
         )
+        print("Train Percent Pass: {}".format(self.percent_pass))
 
         return
+
+    def score(self, true_bg_trace, batch_testing_size=30, sensor_type="generic"):
+        """
+        Score the fitted sensors on a true bg trace.
+
+        Parameters
+        ----------
+        true_bg_trace: np.array
+            True bg trace to score
+
+        batch_testing_size: int
+            Number of sensors to generate for the batch special controls test
+
+        sensor_type: str
+            Special controls sensor type for scoring
+
+        Returns
+        -------
+        (percent_pass, loss): (float, float)
+            percent_pass - Percentage of special control criteria passes
+            loss - if meeting special controls, closeness of score to special controls boundaries
+        """
+        # TODO: CS 2020-10-20 This is similar logic to scoring in fit and both should use the same code. But the
+        #       code base is overly complex and there isn't enough time for a refactor with FDA deadline.
+
+        sensors = self.generate_sensors(batch_testing_size, datetime.datetime(2020, 1, 1))
+        icgm_matrix_test = []
+        for sensor in sensors:
+            icgm_trace = []
+            for true_value in true_bg_trace:
+                icgm_value_test = sensor.get_bg(true_value)
+                icgm_trace.append(icgm_value_test)
+
+            icgm_matrix_test.append(icgm_trace)
+
+        icgm_matrix_test = np.array(icgm_matrix_test)
+        index_delay = int(self.delay / 5.0)
+        temp_df = sf.preprocess_data(
+            true_bg_trace[index_delay:], icgm_matrix_test[:, index_delay:], icgm_range=[40, 400], ysi_range=[0, 900]
+        )
+
+        icgm_special_controls_accuracy_table_test = sf.calc_icgm_sc_table(temp_df, sensor_type)
+
+        loss, percent_pass = sf.calc_icgm_special_controls_loss(
+            icgm_special_controls_accuracy_table_test, np.nan
+        )
+
+        return percent_pass, loss
 
     def generate_sensors(self, n_sensors, sensor_start_datetime, sensor_start_time_index=0):
 

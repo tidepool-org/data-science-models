@@ -1,7 +1,10 @@
-import numpy as np
+import os
+import json
 import sys
 import datetime
 import copy
+
+import numpy as np
 
 
 class SensorExpiredError(Exception):
@@ -96,6 +99,30 @@ class iCGMSensor(Sensor):
         self.bias_drift_type = sensor_properties["bias_drift_type"].values[0]
 
         self.calculate_sensor_bias_properties()
+
+    def serialize_properties_to_json(self, save_path):
+        """
+        Save properties to a json file
+
+        Parameters
+        ----------
+        save_path: str
+            Path to save to
+        """
+        sensor_properties = {
+            "initial_bias": float(self.initial_bias),
+            "phi_drift": float(self.phi_drift),
+            "bias_drift_range_start": float(self.bias_drift_range_start),
+            "bias_drift_range_end": float(self.bias_drift_range_end),
+            "bias_drift_oscillations": float(self.bias_drift_oscillations),
+            "bias_norm_factor": float(self.bias_norm_factor),
+            "noise_coefficient": float(self.noise_coefficient),
+            "delay_minutes": float(self.delay_minutes),
+            "random_seed": float(self.random_seed),
+            "bias_drift_type": self.bias_drift_type
+        }
+        with open(save_path, "w") as file_to_write:
+            json.dump(sensor_properties, file_to_write, indent=4)
 
     def get_state(self):
 
