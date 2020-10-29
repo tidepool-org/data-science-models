@@ -201,6 +201,7 @@ def generate_icgm_sensors(
     # capture the individual sensor characertistics for future simulation
     ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
     ind_sensor_properties["initial_bias"] = initial_bias
+    ind_sensor_properties["noise_per_sensor"] = noise_per_sensor
     ind_sensor_properties["phi_drift"] = phi
 
     # also capture the global sensor parameters (for two reasons)
@@ -1222,7 +1223,7 @@ def get_search_range(
     rranges = (
         slice(0, 1, 1),  # setting a to 0
         slice(1, 2, 1),  # setting b to 1
-        slice(0, 8, 1),  # mu of johnsonsu
+        slice(-7, 8, 1),  # mu of johnsonsu
         slice(1, 8, 1),  # sigma of johnsonsu
         slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
         slice(0.9, 1, 1),  # setting bias drift min to 0.9
