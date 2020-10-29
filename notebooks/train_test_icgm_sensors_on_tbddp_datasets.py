@@ -1,4 +1,5 @@
 import os
+import datetime
 import numpy as np
 import pandas as pd
 from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
@@ -27,7 +28,7 @@ experiment_results = pd.DataFrame(
     ]
 )
 
-batch_size = 300
+batch_size = 100
 n_smoothing_points = 3
 dataset_range = range(0, 10)
 for dataset_id in dataset_range:  # range(0, 10):
@@ -66,7 +67,8 @@ for dataset_id in dataset_range:  # range(0, 10):
         bg_df_test = pd.read_csv(
             os.path.join("..", "data", "tbddp_bg_chains", "bg_{}.csv".format(test_dataset_id)), index_col=[0]
         )
-        test_bg_trace = bg_df_test["bg"].values
+
+        test_bg_trace = bg_df_test["bg"].rolling(n_smoothing_points, center=True).mean().dropna().values
         delayed_iCGM, ind_sensor_properties = generate_icgm_sensors(
             test_bg_trace,
             sensor_generator.dist_params[0:4],  # [a, b, mu, sigma]
@@ -89,3 +91,4 @@ for dataset_id in dataset_range:  # range(0, 10):
         print(acc_results)
         experiment_results.loc[dataset_id, "test_{}".format(test_dataset_id)] = percent_pass_test
 
+experiment_results.to_csv("train_test_icgm_results-{}.csv".format(datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")))
