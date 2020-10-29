@@ -85,6 +85,7 @@ class iCGMSensor(Sensor):
         self.datetime_history = []
 
         self.initial_bias = sensor_properties["initial_bias"].values[0]
+        self.noise_per_sensor = sensor_properties["noise_per_sensor"].values[0]
         self.phi_drift = sensor_properties["phi_drift"].values[0]
         self.bias_drift_range_start = sensor_properties["bias_drift_range_start"].values[0]
         self.bias_drift_range_end = sensor_properties["bias_drift_range_end"].values[0]
@@ -155,7 +156,7 @@ class iCGMSensor(Sensor):
 
         # noise component
         self.noise = np.random.normal(
-            loc=0, scale=np.max([self.noise_coefficient, sys.float_info.epsilon]), size=self.num_readings_24hrs * num_days
+            loc=0, scale=np.max([self.noise_per_sensor, sys.float_info.epsilon]), size=self.num_readings_24hrs * num_days
         )
 
         # bias of individual sensor
@@ -166,7 +167,7 @@ class iCGMSensor(Sensor):
             # bias drift component over 10 days with cgm point every 5 minutes
             t = np.linspace(
                 0, (self.bias_drift_oscillations * np.pi), self.num_readings_24hrs * num_days
-            )  # this is the number of cgm points in 11 days
+            )  # this is the number of cgm points in 10 days
             sn = np.sin(t + self.phi_drift)
 
             self.drift_multiplier = np.interp(sn, (-1, 1), (self.bias_drift_range_start, self.bias_drift_range_start))
