@@ -340,60 +340,40 @@ def johnsonsu_icgm_sensor(
     use_g6_criteria=False,
 ):
 
-    # skip distributions that are unrealistic
-    dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
-    dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    icgm_traces, _ = generate_icgm_sensors(
+        true_bg_trace,
+        dist_params=dist_params[:4],
+        n_sensors=n_sensors,
+        bias_type=bias_type,
+        bias_drift_type=bias_drift_type,
+        bias_drift_range=dist_params[5:7],
+        bias_drift_oscillations=dist_params[7],
+        noise_coefficient=dist_params[4],
+        delay=delay,
+        random_seed=random_seed,
+    )
 
-    dist_range = np.nan
-    if not np.isinf(dist_min):
-        if not np.isinf(dist_max):
-            dist_range = dist_max - dist_min
+    df = preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
 
-    if (
-        (np.abs(dist_min) > 15)
-        | (np.abs(dist_max) < 10)
-        | (np.abs(dist_max) > 100)
-        | (dist_range < 5)
-        | (dist_range > 100)
-        | (pd.isnull(dist_range))
-    ):
-        loss = 10000
+    """ icgm special controls """
+    acc_results = calc_icgm_sc_table(df, "generic")
+
+    """ new loss function """
+    if use_g6_criteria:
+        g6_loss, g6_table = calc_dexcom_loss(df, n_sensors)
     else:
+        g6_loss, g6_table = np.nan, np.nan
 
-        icgm_traces, _ = generate_icgm_sensors(
-            true_bg_trace,
-            dist_params=dist_params[:4],
-            n_sensors=n_sensors,
-            bias_type=bias_type,
-            bias_drift_type=bias_drift_type,
-            bias_drift_range=dist_params[5:7],
-            bias_drift_oscillations=dist_params[7],
-            noise_coefficient=dist_params[4],
-            delay=delay,
-            random_seed=random_seed,
-        )
+    loss, percent_pass = calc_icgm_special_controls_loss(acc_results, g6_loss)
 
-        df = preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
-
-        """ icgm special controls """
-        acc_results = calc_icgm_sc_table(df, "generic")
-
-        """ new loss function """
-        if use_g6_criteria:
-            g6_loss, g6_table = calc_dexcom_loss(df, n_sensors)
-        else:
-            g6_loss, g6_table = np.nan, np.nan
-
-        loss, percent_pass = calc_icgm_special_controls_loss(acc_results, g6_loss)
-
-        if verbose:
-            print("johnsonsu paramters: {}".format(dist_params))
-            print("loss=", loss)
-            print("percent pass=", percent_pass)
-            print("accuray results=", acc_results)
-            print("g6 results=", g6_table)
-        # else:
-        # print(".", end=" ")
+    if verbose:
+        print("johnsonsu paramters: {}".format(dist_params))
+        print("loss=", loss)
+        print("percent pass=", percent_pass)
+        print("accuray results=", acc_results)
+        print("g6 results=", g6_table)
+    # else:
+    # print(".", end=" ")
 
     return loss
 
