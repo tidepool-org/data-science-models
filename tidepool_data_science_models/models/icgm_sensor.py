@@ -104,6 +104,29 @@ class iCGMSensor(Sensor):
             sensor_bg_prediction=self.current_sensor_bg_prediction
         )
 
+    def get_info_stateless(self):
+        """
+        Save properties to a json file
+
+        Parameters
+        ----------
+        save_path: str
+            Path to save to
+        """
+        sensor_properties = {
+            "initial_bias": float(self.initial_bias),
+            "phi_drift": float(self.phi_drift),
+            "bias_drift_range_start": float(self.bias_drift_range_start),
+            "bias_drift_range_end": float(self.bias_drift_range_end),
+            "bias_drift_oscillations": float(self.bias_drift_oscillations),
+            "bias_norm_factor": float(self.bias_norm_factor),
+            "noise_coefficient": float(self.noise_coefficient),
+            "delay_minutes": float(self.delay_minutes),
+            "random_seed": float(self.random_seed),
+            "bias_drift_type": self.bias_drift_type
+        }
+        return sensor_properties
+
     def validate_time_index(self, time_index):
         """Checks to see if the proposed sensor time index is within the sensor life"""
         before_sensor_starts = time_index < 0
@@ -266,5 +289,5 @@ class iCGMSensor(Sensor):
 
     def get_loop_inputs(self):
         """Get two arrays for dates and values, used for Loop input"""
-        loop_bg_values = [max(40, min(400, round(bg))) for bg in self.sensor_bg_history]
+        loop_bg_values = [max(40, min(400, np.round(bg))) for bg in self.sensor_bg_history]
         return self.datetime_history, loop_bg_values
