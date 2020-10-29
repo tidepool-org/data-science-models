@@ -39,7 +39,9 @@ for dataset_id in dataset_range:  # range(0, 10):
     # true_bg_array = bg_df["bg"].values
 
     sensor_generator = iCGMSensorGenerator(
-        batch_training_size=batch_size, max_number_of_spurious_events_per_10_days=0, verbose=False
+        batch_training_size=batch_size,
+        # max_number_of_spurious_events_per_10_days=0,
+        verbose=True
     )
 
     sensor_generator.fit(true_bg_array)
@@ -75,7 +77,7 @@ for dataset_id in dataset_range:  # range(0, 10):
             bias_drift_oscillations=sensor_generator.dist_params[7],  # opt for random drift (max of 2)
             noise_coefficient=sensor_generator.dist_params[4],  # (0 ~ 60dB, 5 ~ 36 dB, 10, 30 dB)
             delay=10,  # (suggest 0, 5, 10, 15)
-            number_of_spurious_events_per_10_days=0,
+            # number_of_spurious_events_per_10_days=0,
             random_seed=0,
         )
 
