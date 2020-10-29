@@ -97,6 +97,7 @@ class iCGMSensorGenerator(object):
         self.icgm_special_controls_accuracy_table = None
         self.g6_loss = None
         self.g6_table = None
+        self.loss_of_best_search = None
         self.percent_pass = None
 
         return
