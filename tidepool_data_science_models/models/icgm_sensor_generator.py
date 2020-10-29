@@ -131,7 +131,7 @@ class iCGMSensorGenerator(object):
             ),
             workers=-1,
             full_output=True,
-            finish=fmin,  # fmin will look for a local minimum around the grid point
+            finish=None,  # fmin will look for a local minimum around the grid point
         )
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
