@@ -146,8 +146,12 @@ def generate_icgm_sensors(
     a, b, mu, sigma = dist_params
     initial_bias = johnsonsu.rvs(a=a, b=b, loc=mu, scale=sigma, size=n_sensors)
 
-    # add noise
-    noise = np.random.normal(loc=0, scale=np.max([noise_coefficient, EPS]), size=(n_sensors, len(true_bg_trace)))
+    # add noise and changing so that the noise coefficient is the maximum amount of noise
+    # and individual sensors can have between 0 (EPS) to maximum amount of noise
+    noise = np.zeros(shape=(n_sensors, len(true_bg_trace)))
+    noise_per_sensor = np.random.uniform(low=EPS, high=noise_coefficient, size=n_sensors)
+    for n, n_sigma in enumerate(noise_per_sensor):
+        noise[n, :] = np.random.normal(loc=0, scale=np.max([n_sigma, EPS]), size=len(true_bg_trace))
 
     # bias drift
     if "none" in bias_drift_type:
