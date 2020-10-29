@@ -170,7 +170,7 @@ class iCGMSensor(Sensor):
             )  # this is the number of cgm points in 10 days
             sn = np.sin(t + self.phi_drift)
 
-            self.drift_multiplier = np.interp(sn, (-1, 1), (self.bias_drift_range_start, self.bias_drift_range_start))
+            self.drift_multiplier = np.interp(sn, (-1, 1), (self.bias_drift_range_start, self.bias_drift_range_end))
 
         if self.bias_drift_type == "linear":
             print("No 'linear' bias_drift_type implemented in iCGM Sensor")
