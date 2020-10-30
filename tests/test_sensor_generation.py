@@ -54,7 +54,7 @@ def test_that_fit_icgm_sensor_has_correct_stats():
             and sensor.bias_drift_type == sensor_properties.loc[s, "bias_drift_type"].values[0]
         )
 
-        # check that the resulting noise added fits within the toleragnce of the noise per sensor
+        # check that the resulting noise added fits within the tolerance of the noise per sensor
         assert sensor.noise_per_sensor == approx(np.std(sensor.noise), rel=1e-1)
 
         # check that the initial bias fits within the fit distribution
@@ -75,3 +75,40 @@ def test_that_fit_icgm_sensor_has_correct_stats():
         )
 
         assert (sensor.initial_bias >= initial_bias_min) and (sensor.initial_bias <= initial_bias_max)
+
+        # check that the bias drift is applied correctly
+        # there are a few use cases:
+        # * when oscillations >= 2 then the drift should cover the full range from bias_drift_range_start to bias_drift_range_end
+        # * when osciallations < 2 then the drift will be highly dependent on phi and the range of any one sensor will be limited
+        # NOTE: if you want to see how this works, see the plots commented below
+        bias_drift_range_start = sensor_properties.loc[0, "bias_drift_range_start"].values[0]
+        bias_drift_range_end = sensor_properties.loc[0, "bias_drift_range_end"].values[0]
+        for phi in np.arange(-np.pi, np.pi, np.pi/2):
+            for bias_drift_oscillations in [1/32, 1, 2]:
+                t = np.linspace(0, (bias_drift_oscillations * np.pi), 2880)
+                sn = np.sin(t + phi)
+                drift_multiplier = np.interp(
+                    sn,
+                    (-1, 1),
+                    (
+                        bias_drift_range_start,
+                        bias_drift_range_end,
+                    ),
+                )
+
+                drift_multiplier_min = drift_multiplier.min()
+                drift_multiplier_max = drift_multiplier.max()
+                if bias_drift_oscillations < 2:
+                    assert (
+                        (drift_multiplier_min >= bias_drift_range_start)
+                        and (drift_multiplier_max <= bias_drift_range_end)
+                     )
+                else:
+                    assert bias_drift_range_start == approx(drift_multiplier_min, abs=1e-2)
+                    assert bias_drift_range_end == approx(drift_multiplier_max, abs=1e-2)
+
+                # import matplotlib.pyplot as plt
+                # plt.plot(drift_multiplier)
+                # plt.title("Bias Drift Applied with phi={:.2f}, oscillations={}".format(phi, bias_drift_oscillations))
+                # plt.show()
+
