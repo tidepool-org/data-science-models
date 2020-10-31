@@ -144,4 +144,3 @@ def test_that_results_are_repeatable():
 
     # test that the same icgm traces are generated
     assert np.array_equal(new_sensor_generator.icgm_traces, benchmark_sensor_generator_obj.icgm_traces)
-\
