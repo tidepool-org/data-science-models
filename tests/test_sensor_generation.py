@@ -126,7 +126,8 @@ def test_that_results_are_repeatable():
     )
 
     # refit to the same benchmark true bg dataset
-    new_sensor_generator.fit(benchmark_sensor_generator_obj.true_bg_trace)
+    benchmark_true_bg_trace = benchmark_sensor_generator_obj.true_bg_trace
+    new_sensor_generator.fit(benchmark_true_bg_trace)
 
     assert new_sensor_generator.sc_thresholds == benchmark_sensor_generator_obj.sc_thresholds
     assert new_sensor_generator.batch_training_size == benchmark_sensor_generator_obj.batch_training_size
@@ -140,3 +141,7 @@ def test_that_results_are_repeatable():
     assert new_sensor_generator.icgm_special_controls_accuracy_table.equals(
         benchmark_sensor_generator_obj.icgm_special_controls_accuracy_table
     )
+
+    # test that the same icgm traces are generated
+    assert np.array_equal(new_sensor_generator.icgm_traces, benchmark_sensor_generator_obj.icgm_traces)
+\
