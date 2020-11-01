@@ -188,9 +188,6 @@ def generate_icgm_sensors(
     bias_factor = (norm_factor + initial_bias) / (np.max([norm_factor, 1]))
     bias_factor_matrix = np.tile(bias_factor, (len(true_bg_trace), 1)).T
     iCGM = ((true_matrix * bias_factor_matrix) * drift_multiplier) + noise
-    # else:
-    #     bias_matrix = np.tile(initial_bias, (len(true_bg_trace), 1)).T
-    #     iCGM = ((true_matrix + bias_matrix) * drift_multiplier) + noise
 
     # add delay or lag to the iCGM traces
     delay_steps = np.int(np.round(delay / 5))
@@ -198,26 +195,44 @@ def generate_icgm_sensors(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
 
-    # capture the individual sensor characertistics for future simulation
-    ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
-    ind_sensor_properties["initial_bias"] = initial_bias
-    ind_sensor_properties["noise_per_sensor"] = noise_per_sensor
-    ind_sensor_properties["phi_drift"] = phi
+    # capture sensor characteristics for future simulation
+    sensor_properties = dict()
 
-    # also capture the global sensor parameters (for two reasons)
-    # 1. so that all of the parameters to simulate iCGM are in one location
-    # 2. for future versions of iCGM sensor simulator that allows individual
-    # sensors to have variable, noise, bias_drift_oscillations, delay, etc.
-    ind_sensor_properties["bias_drift_type"] = bias_drift_type
-    ind_sensor_properties["bias_drift_range_start"] = bias_drift_range[0]
-    ind_sensor_properties["bias_drift_range_end"] = bias_drift_range[1]
-    ind_sensor_properties["bias_drift_oscillations"] = bias_drift_oscillations
-    ind_sensor_properties["bias_norm_factor"] = norm_factor
-    ind_sensor_properties["noise_coefficient"] = noise_coefficient
-    ind_sensor_properties["delay"] = delay
-    ind_sensor_properties["random_seed"] = random_seed
+    # %% capture batch sensor properties
+    sensor_properties["random_seed"] = [random_seed] * n_sensors
 
-    return delayed_iCGM, ind_sensor_properties
+    # johnson distribution parameters
+    sensor_properties["a"] = [a] * n_sensors
+    sensor_properties["b"] = [b] * n_sensors
+    sensor_properties["mu"] = [mu] * n_sensors
+    sensor_properties["sigma"] = [sigma] * n_sensors
+
+    # bias type
+    sensor_properties["bias_type"] = [bias_type] * n_sensors
+    sensor_properties["bias_norm_factor"] = [norm_factor] * n_sensors
+
+    # bias drift
+    sensor_properties["bias_drift_type"] = [bias_drift_type] * n_sensors
+    sensor_properties["bias_drift_range_start"] = [bias_drift_range[0]] * n_sensors
+    sensor_properties["bias_drift_range_end"] = [bias_drift_range[1]] * n_sensors
+    sensor_properties["bias_drift_oscillations"] = [bias_drift_oscillations] * n_sensors
+
+    # noise and delay
+    sensor_properties["noise_coefficient"] = [noise_coefficient] * n_sensors
+    sensor_properties["delay"] = [delay] * n_sensors
+
+    # %% capture individual sensor values
+    sensor_properties["initial_bias"] = initial_bias
+    sensor_properties["bias_factor"] = bias_factor
+    sensor_properties["phi_drift"] = phi
+    sensor_properties["noise_per_sensor"] = noise_per_sensor
+
+    # %% capture individual sensor traces
+    sensor_properties["bias_factor_matrix"] = bias_factor_matrix
+    sensor_properties["drift_multiplier"] = drift_multiplier
+    sensor_properties["noise"] = noise
+
+    return delayed_iCGM, sensor_properties
 
 
 def get_icgm_value(

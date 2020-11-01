@@ -91,7 +91,7 @@ class iCGMSensorGenerator(object):
         np.random.seed(seed=random_seed)
 
         self.icgm_traces = None
-        self.individual_sensor_properties = None
+        self.sensor_properties = None
         self.batch_sensor_brute_search_results = None
         self.batch_sensor_properties = None
         self.icgm_special_controls_accuracy_table = None
@@ -183,7 +183,7 @@ class iCGMSensorGenerator(object):
 
         # STEP 3 apply the results
         # Convert to a generate_sensor(global_params) --> Sensor(obj)
-        self.icgm_traces, self.individual_sensor_properties = sf.generate_icgm_sensors(
+        self.icgm_traces, self.sensor_properties = sf.generate_icgm_sensors(
             self.true_bg_trace,
             dist_params=self.dist_params[:4],
             n_sensors=n_sensors,
@@ -199,10 +199,13 @@ class iCGMSensorGenerator(object):
         sensors = []
 
         for sensor_num in range(n_sensors):
-            sensor_properties = self.individual_sensor_properties.loc[sensor_num]
+            ind_sensor_properties = dict()
+            for key in self.sensor_properties.keys():
+                ind_sensor_properties[key] = self.sensor_properties[key][sensor_num]
+
             sensors.append(
                 iCGMSensor(
-                    sensor_properties=sensor_properties,
+                    sensor_properties=ind_sensor_properties,
                     time_index=sensor_start_time_index,
                     current_datetime=sensor_start_datetime,
                 )

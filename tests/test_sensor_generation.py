@@ -35,28 +35,18 @@ def test_that_fit_icgm_sensor_has_correct_stats():
     sensor_generator.fit(df["value"].values)
 
     # check that the sensor values used in the fit are written to the sensor output
-    sensor_properties = sensor_generator.individual_sensor_properties
+    sensor_properties = sensor_generator.sensor_properties
     for s in range(batch_size):
         sensor = sensor_generator.sensors[s]
-        sensor_generator.individual_sensor_properties
 
         # check that the sensor characteristics are being passed properly
-        assert (
-            sensor.initial_bias == sensor_properties.loc[s, "initial_bias"].values[0]
-            and sensor.noise_per_sensor == sensor_properties.loc[s, "noise_per_sensor"].values[0]
-            and sensor.phi_drift == sensor_properties.loc[s, "phi_drift"].values[0]
-            and sensor.bias_drift_range_start == sensor_properties.loc[s, "bias_drift_range_start"].values[0]
-            and sensor.bias_drift_range_end == sensor_properties.loc[s, "bias_drift_range_end"].values[0]
-            and sensor.bias_drift_oscillations == sensor_properties.loc[s, "bias_drift_oscillations"].values[0]
-            and sensor.bias_norm_factor == sensor_properties.loc[s, "bias_norm_factor"].values[0]
-            and sensor.noise_coefficient == sensor_properties.loc[s, "noise_coefficient"].values[0]
-            and sensor.delay_minutes == sensor_properties.loc[s, "delay"].values[0]
-            and sensor.random_seed == sensor_properties.loc[s, "random_seed"].values[0]
-            and sensor.bias_drift_type == sensor_properties.loc[s, "bias_drift_type"].values[0]
-        )
+        for key in sensor.sensor_properties.keys():
+            assert np.array_equal(sensor.sensor_properties[key], sensor_properties[key][s])
 
         # check that the resulting noise added fits within the tolerance of the noise per sensor
-        assert sensor.noise_per_sensor == approx(np.std(sensor.noise), rel=1e-1)
+        assert sensor.sensor_properties["noise_per_sensor"] == approx(
+            np.std(sensor.sensor_properties["noise"]), rel=1e-1
+        )
 
         # check that the initial bias fits within the fit distribution
         initial_bias_min = johnsonsu.ppf(
@@ -75,15 +65,18 @@ def test_that_fit_icgm_sensor_has_correct_stats():
             scale=sensor_generator.dist_params[3],
         )
 
-        assert (sensor.initial_bias >= initial_bias_min) and (sensor.initial_bias <= initial_bias_max)
+        assert (sensor.sensor_properties["initial_bias"] >= initial_bias_min) and (
+            sensor.sensor_properties["initial_bias"] <= initial_bias_max
+        )
 
         # check that the bias drift is applied correctly
         # there are a few use cases:
         # * when oscillations >= 2 then the drift should cover the full range from bias_drift_range_start to bias_drift_range_end
         # * when osciallations < 2 then the drift will be highly dependent on phi and the range of any one sensor will be limited
         # NOTE: if you want to see how this works, see the plots commented below
-        bias_drift_range_start = sensor_properties.loc[0, "bias_drift_range_start"].values[0]
-        bias_drift_range_end = sensor_properties.loc[0, "bias_drift_range_end"].values[0]
+        bias_drift_range_start = sensor_properties["bias_drift_range_start"][0]
+        bias_drift_range_end = sensor_properties["bias_drift_range_end"][0]
+
         for phi in np.arange(-np.pi, np.pi, np.pi / 2):
             for bias_drift_oscillations in [1 / 32, 1, 2]:
                 t = np.linspace(0, (bias_drift_oscillations * np.pi), 2880)
@@ -135,12 +128,18 @@ def test_that_results_are_repeatable():
         new_sensor_generator.johnson_parameter_search_range
         == benchmark_sensor_generator_obj.johnson_parameter_search_range
     )
-    assert new_sensor_generator.individual_sensor_properties.equals(
-        benchmark_sensor_generator_obj.individual_sensor_properties
-    )
+
     assert new_sensor_generator.icgm_special_controls_accuracy_table.equals(
         benchmark_sensor_generator_obj.icgm_special_controls_accuracy_table
     )
 
     # test that the same icgm traces are generated
     assert np.array_equal(new_sensor_generator.icgm_traces, benchmark_sensor_generator_obj.icgm_traces)
+
+    # this assertion is now changed given that individual_sensor_properties have been changed from df to dict,
+    # BUT, the icgm traces would only be exactly equal if all of the sensor properties were identical,
+    # which is the test above.
+
+    # assert new_sensor_generator.individual_sensor_properties.equals(
+    #     benchmark_sensor_generator_obj.individual_sensor_properties
+    # )

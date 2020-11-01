@@ -34,7 +34,6 @@ class Sensor(object):
 
 
 class SensorState(object):
-
     def __init__(self, **kwargs):
 
         self.sensor_bg = kwargs.get("sensor_bg")
@@ -46,7 +45,7 @@ class iCGMSensor(Sensor):
 
     Parameters
         ----------
-        sensor_properties : pandas DataFrame object
+        sensor_properties : a dictionary
             A set of sensor properties needed to initialize an iCGM Sensor
         sensor_life_days : int
             The number of days the sensor will last.
@@ -68,42 +67,105 @@ class iCGMSensor(Sensor):
         if sensor_life_days <= 0 or not isinstance(sensor_life_days, int):
             raise Exception("iCGM Sensor's sensor_life_days must be a positive non-zero integer")
 
+        self.current_datetime = current_datetime
+        self.time_index = time_index
+        self.sensor_life_days = sensor_life_days
         self.minutes_per_reading = 5
         self.num_readings_24hrs = int(24 * 60 / self.minutes_per_reading)  # hr * min/hr / min/reading
-
-        self.current_sensor_bg = None
-        self.current_sensor_bg_prediction = None
-
-        self.sensor_life_days = sensor_life_days
-        self.time_index = time_index
-        self.current_datetime = current_datetime
+        self.num_readings_sensor_life = self.num_readings_24hrs * self.sensor_life_days
 
         self.validate_time_index(self.time_index)
 
+        self.current_sensor_bg = None
+        self.current_sensor_bg_prediction = None
         self.reading_delay_buffer = []
         self.sensor_bg_history = []
         self.datetime_history = []
 
-        self.initial_bias = sensor_properties["initial_bias"].values[0]
-        self.noise_per_sensor = sensor_properties["noise_per_sensor"].values[0]
-        self.phi_drift = sensor_properties["phi_drift"].values[0]
-        self.bias_drift_range_start = sensor_properties["bias_drift_range_start"].values[0]
-        self.bias_drift_range_end = sensor_properties["bias_drift_range_end"].values[0]
-        self.bias_drift_oscillations = sensor_properties["bias_drift_oscillations"].values[0]
-        self.bias_norm_factor = sensor_properties["bias_norm_factor"].values[0]
-        self.noise_coefficient = sensor_properties["noise_coefficient"].values[0]
-        self.delay_minutes = sensor_properties["delay"].values[0]
-        self.random_seed = sensor_properties["random_seed"].values[0]
-        self.bias_drift_type = sensor_properties["bias_drift_type"].values[0]
+        # sensor properties
+        self.sensor_properties = sensor_properties
+        sensor_properties_keys = sensor_properties.keys()
 
-        self.calculate_sensor_bias_properties()
+        # TODO: need to double check implementation of getting the random state
+        if "random_seed" in sensor_properties_keys:
+            np.random.seed(seed=sensor_properties["random_seed"])
+        else:
+            self.sensor_properties["random_seed"] = np.random.get_state()[1][0]
+
+        # noise
+        if "noise" not in sensor_properties_keys:
+            if "noise_per_sensor" not in sensor_properties_keys:
+                if "noise_coefficient" not in sensor_properties_keys:
+                    raise Exception("Missing Noise Sensor Properties, must pass in a noise coefficient")
+                else:
+                    # noise component
+                    self.sensor_properties["noise"] = np.random.normal(
+                        loc=0,
+                        scale=np.max([sensor_properties["noise_per_sensor"], sys.float_info.epsilon]),
+                        size=self.num_readings_sensor_life,
+                    )
+
+        # bias
+        if "bias_factor" not in sensor_properties_keys:
+            if "bias_type" not in sensor_properties_keys:
+                if "bias_bias_norm_factor" not in sensor_properties_keys:
+                    if "percentage_of_value" in sensor_properties["bias_type"]:
+                        self.sensor_properties["norm_factor"] = 55
+                    else:
+                        self.sensor_properties["norm_factor"] = 0
+
+                    if "initial_bias" not in sensor_properties_keys:
+                        # bias of individual sensor
+                        self.sensor_properties["bias_factor"] = (
+                            self.sensor_properties["norm_factor"] + self.sensor_properties["initial_bias"]
+                        ) / (np.max([self.sensor_properties["norm_factor"], 1]))
+
+        # bias drift
+        if "drift_multiplier" not in sensor_properties_keys:
+            if "bias_drift_type" not in sensor_properties_keys:
+                raise Exception("Missing Bias Drift Sensor Properties, bias_drift_type")
+            else:
+
+                if self.sensor_properties["bias_drift_type"] == "none":
+                    self.sensor_properties["drift_multiplier"] = np.ones(self.num_readings_sensor_life)
+                else:
+                    if "bias_drift_range_start" not in sensor_properties_keys:
+                        raise Exception("Missing Bias Drift Sensor Properties, bias_drift_range_start")
+                    if "bias_drift_range_end" not in sensor_properties_keys:
+                        raise Exception("Missing Bias Drift Sensor Properties, bias_drift_range_end")
+
+                    if self.sensor_properties["bias_drift_type"] == "linear":
+                        self.sensor_properties["drift_multiplier"] = np.linspace(
+                            self.sensor_properties["bias_drift_range_start"],
+                            self.sensor_properties["bias_drift_range_end"],
+                            self.num_readings_sensor_life,
+                        )
+
+                    elif self.sensor_properties["bias_drift_type"] == "random":
+                        if "bias_drift_oscillations" not in sensor_properties_keys:
+                            raise Exception("Missing Bias Drift Sensor Properties, bias_drift_oscillations")
+                        if "phi_drift" not in sensor_properties_keys:
+                            raise Exception("Missing Bias Drift Sensor Properties, phi_drift")
+
+                        t = np.linspace(
+                            0,
+                            (self.sensor_properties["bias_drift_oscillations"] * np.pi),
+                            self.num_readings_sensor_life,
+                        )
+                        sn = np.sin(t + self.sensor_properties["phi_drift"])
+
+                        self.sensor_properties["drift_multiplier"] = np.interp(
+                            sn,
+                            (-1, 1),
+                            (
+                                self.sensor_properties["bias_drift_range_start"],
+                                self.sensor_properties["bias_drift_range_end"],
+                            ),
+                        )
 
     def get_state(self):
 
-        return SensorState(
-            sensor_bg=self.current_sensor_bg,
-            sensor_bg_prediction=self.current_sensor_bg_prediction
-        )
+        return SensorState(sensor_bg=self.current_sensor_bg, sensor_bg_prediction=self.current_sensor_bg_prediction)
 
     def validate_time_index(self, time_index):
         """Checks to see if the proposed sensor time index is within the sensor life"""
@@ -146,38 +208,38 @@ class iCGMSensor(Sensor):
         """
         return self.time_index >= self.sensor_life_days * self.num_readings_24hrs
 
-    def calculate_sensor_bias_properties(self):
-        """Calculates the time series noise and bias drift properties based on other sensor properties"""
-
-        num_days = 10  # CS 2020-06-20: Can this just be the sensor life or does that cause problems?
-
-        # random seed for reproducibility
-        np.random.seed(seed=self.random_seed)
-
-        # noise component
-        self.noise = np.random.normal(
-            loc=0, scale=np.max([self.noise_per_sensor, sys.float_info.epsilon]), size=self.num_readings_24hrs * num_days
-        )
-
-        # bias of individual sensor
-        self.bias_factor = (self.bias_norm_factor + self.initial_bias) / (np.max([self.bias_norm_factor, 1]))
-
-        if self.bias_drift_type == "random":
-
-            # bias drift component over 10 days with cgm point every 5 minutes
-            t = np.linspace(
-                0, (self.bias_drift_oscillations * np.pi), self.num_readings_24hrs * num_days
-            )  # this is the number of cgm points in 10 days
-            sn = np.sin(t + self.phi_drift)
-
-            self.drift_multiplier = np.interp(sn, (-1, 1), (self.bias_drift_range_start, self.bias_drift_range_end))
-
-        if self.bias_drift_type == "linear":
-            print("No 'linear' bias_drift_type implemented in iCGM Sensor")
-            raise NotImplementedError
-
-        if self.bias_drift_type == "none":
-            self.drift_multiplier = np.ones(self.num_readings_24hrs * num_days)
+    # def calculate_sensor_bias_properties(self):
+    #     """Calculates the time series noise and bias drift properties based on other sensor properties"""
+    #
+    #     num_days = 10  # CS 2020-06-20: Can this just be the sensor life or does that cause problems?
+    #
+    #     # random seed for reproducibility
+    #     np.random.seed(seed=self.random_seed)
+    #
+    #     # noise component
+    #     self.noise = np.random.normal(
+    #         loc=0, scale=np.max([self.noise_per_sensor, sys.float_info.epsilon]), size=self.num_readings_24hrs * num_days
+    #     )
+    #
+    #     # bias of individual sensor
+    #     self.bias_factor = (self.bias_norm_factor + self.initial_bias) / (np.max([self.bias_norm_factor, 1]))
+    #
+    #     if self.bias_drift_type == "random":
+    #
+    #         # bias drift component over 10 days with cgm point every 5 minutes
+    #         t = np.linspace(
+    #             0, (self.bias_drift_oscillations * np.pi), self.num_readings_24hrs * num_days
+    #         )  # this is the number of cgm points in 10 days
+    #         sn = np.sin(t + self.phi_drift)
+    #
+    #         self.drift_multiplier = np.interp(sn, (-1, 1), (self.bias_drift_range_start, self.bias_drift_range_end))
+    #
+    #     if self.bias_drift_type == "linear":
+    #         print("No 'linear' bias_drift_type implemented in iCGM Sensor")
+    #         raise NotImplementedError
+    #
+    #     if self.bias_drift_type == "none":
+    #         self.drift_multiplier = np.ones(self.num_readings_24hrs * num_days)
 
     def get_bg(self, true_bg_value):
         """
@@ -205,13 +267,13 @@ class iCGMSensor(Sensor):
         # Get delayed true bg
         delayed_true_bg = np.nan
         self.reading_delay_buffer.append(true_bg_value)
-        if len(self.reading_delay_buffer) > int(self.delay_minutes / self.minutes_per_reading):
+        if len(self.reading_delay_buffer) > int(self.sensor_properties["delay"] / self.minutes_per_reading):
             delayed_true_bg = self.reading_delay_buffer.pop(0)
 
         # Calculate value
-        drift_multiplier = self.drift_multiplier[self.time_index]
-        noise = self.noise[self.time_index]
-        icgm_value = (delayed_true_bg * self.bias_factor * drift_multiplier) + noise
+        drift_multiplier = self.sensor_properties["drift_multiplier"][self.time_index]
+        noise = self.sensor_properties["noise"][self.time_index]
+        icgm_value = (delayed_true_bg * self.sensor_properties["bias_factor"] * drift_multiplier) + noise
 
         return icgm_value
 
