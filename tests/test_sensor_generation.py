@@ -1,7 +1,11 @@
 import pickle
+import os
+import copy
+import datetime
 import numpy as np
 from pytest import approx
 from scipy.stats import johnsonsu
+from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
 from tidepool_data_science_models.models.icgm_sensor_generator_functions import create_dataset
 
@@ -174,3 +178,54 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
     # assert new_sensor_generator.individual_sensor_properties.equals(
     #     benchmark_sensor_generator_obj.individual_sensor_properties
     # )
+
+
+def test_given_same_true_bg_trace_and_sensor_properties_create_new_sensor_and_get_same_icgm_trace():
+    """
+    given the same true bg trace and sensor characteristics, we should be able to recreate the same icgm trace with
+    the update function
+    """
+
+    benchmark_sensor_generator_obj = pickle.load(
+        open(os.path.join("..", "tests", "benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl"), "rb")
+    )
+
+    benchmark_sensor = benchmark_sensor_generator_obj.sensors[0]
+    benchmark_true_bg_trace = benchmark_sensor_generator_obj.true_bg_trace
+
+    new_sensor_properties = copy.deepcopy(benchmark_sensor.sensor_properties)
+
+    # delay the noise and drift multiplier by the delay amount to get identical traces
+    n_sensor_delay_datapoints = int(benchmark_sensor.sensor_properties["delay"] / 5)
+    new_sensor_properties["noise"] = np.append(
+        [np.nan] * n_sensor_delay_datapoints, benchmark_sensor.sensor_properties["noise"]
+    )
+    new_sensor_properties["drift_multiplier"] = np.append(
+        [np.nan] * n_sensor_delay_datapoints, benchmark_sensor.sensor_properties["drift_multiplier"]
+    )
+
+    # create a new sensor with the benchmark sensor properties
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    new_sensor = iCGMSensor(current_datetime=sensor_datetime, sensor_properties=new_sensor_properties)
+
+    # this is the case where we are passing in all of the sensor characteristics
+    for expected_time_index, true_bg_val in enumerate(benchmark_true_bg_trace):
+        new_sensor.update(sensor_datetime, patient_true_bg=true_bg_val)
+        if expected_time_index > 1:
+            # check that the icgm values are identical
+            assert new_sensor.current_sensor_bg == benchmark_sensor_generator_obj.icgm_traces[0, expected_time_index]
+            # NOTE: I am leaving this in here if anyone wants to view the output
+            # print(
+            #     expected_time_index,
+            #     sensor_datetime,
+            #     true_bg_val,
+            #     new_sensor.current_sensor_bg,
+            #     benchmark_sensor_generator_obj.icgm_traces[0, expected_time_index],
+            #     new_sensor.sensor_properties["noise"][expected_time_index],
+            #     benchmark_sensor_generator_obj.sensor_properties["noise"][0, expected_time_index],
+            #     new_sensor.sensor_properties["drift_multiplier"][expected_time_index],
+            #     benchmark_sensor_generator_obj.sensor_properties["drift_multiplier"][0, expected_time_index],
+            #     new_sensor.sensor_properties["bias_factor"],
+            #     benchmark_sensor_generator_obj.sensor_properties["bias_factor"][0],
+            # )
+            sensor_datetime += datetime.timedelta(minutes=5)
