@@ -99,13 +99,44 @@ def test_that_fit_icgm_sensor_has_correct_stats():
                 # plt.show()
 
 
-def test_that_results_are_repeatable():
+def test_that_results_are_same_before_after_sensor_property_refactor():
     """
     check that fit gives the same exact results as the fit to the benchmark dataset
     see (/notebooks/make_benchmark_datasets.py for details on the benchmark dataset)
     """
 
-    benchmark_sensor_generator_obj = pickle.load(open("benchmark_results_2020_10_30.pkl", "rb"))
+    benchmark_sensor_generator_obj = pickle.load(
+        open("benchmark_results_with_df_sensor_properties_2020_10_30.pkl", "rb")
+    )
+
+    new_benchmark_sensor_generator_obj = pickle.load(
+        open("benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl", "rb")
+    )
+
+    assert new_benchmark_sensor_generator_obj.sc_thresholds == benchmark_sensor_generator_obj.sc_thresholds
+    assert new_benchmark_sensor_generator_obj.batch_training_size == benchmark_sensor_generator_obj.batch_training_size
+    assert (
+        new_benchmark_sensor_generator_obj.johnson_parameter_search_range
+        == benchmark_sensor_generator_obj.johnson_parameter_search_range
+    )
+
+    assert new_benchmark_sensor_generator_obj.icgm_special_controls_accuracy_table.equals(
+        benchmark_sensor_generator_obj.icgm_special_controls_accuracy_table
+    )
+
+    # test that the same icgm traces are generated
+    assert np.array_equal(new_benchmark_sensor_generator_obj.icgm_traces, benchmark_sensor_generator_obj.icgm_traces)
+
+
+def test_that_results_are_repeatable_before_after_sensor_property_refactor():
+    """
+    check that fit gives the same exact results as the fit to the benchmark dataset
+    see (/notebooks/make_benchmark_datasets.py for details on the benchmark dataset)
+    """
+
+    benchmark_sensor_generator_obj = pickle.load(
+        open("benchmark_results_with_df_sensor_properties_2020_10_30.pkl", "rb")
+    )
 
     batch_size = 3
     random_seed = 0

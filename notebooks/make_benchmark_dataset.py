@@ -22,6 +22,6 @@ sensor_generator = iCGMSensorGenerator(
 )
 
 sensor_generator.fit(true_bg["value"].values)
-save_path = os.path.join("..", "tests", "benchmark_results_2020_10_30.pkl")
+save_path = os.path.join("..", "tests", "benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl")
 with open(save_path, "wb") as f:
     pickle.dump(sensor_generator, f)
