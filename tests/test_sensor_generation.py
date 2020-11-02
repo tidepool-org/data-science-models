@@ -232,8 +232,8 @@ def test_given_same_true_bg_trace_and_sensor_properties_create_new_sensor_and_ge
 
 
 def test_recreate_icgm_sensor_and_values_with_same_random_seed():
-# we should be able to create a sensor with iCGMSensor and then be able to recreate using the same random seed
-# create a new sensor with the benchmark sensor properties
+    # we should be able to create a sensor with iCGMSensor and then be able to recreate using the same random seed
+    # create a new sensor with the benchmark sensor properties
 
     df, _ = create_dataset(
         kind="sine",
@@ -264,7 +264,7 @@ def test_recreate_icgm_sensor_and_values_with_same_random_seed():
             "bias_drift_oscillations": 1,
             "noise_per_sensor": 7,
             "delay": 10,
-        }
+        },
     )
 
     # make an icgm trace using the udpate function
@@ -274,8 +274,7 @@ def test_recreate_icgm_sensor_and_values_with_same_random_seed():
 
     sensor_datetime = datetime.datetime(2020, 1, 1)
     second_sensor = iCGMSensor(
-        current_datetime=sensor_datetime,
-        sensor_properties=copy.deepcopy(first_sensor.sensor_properties)
+        current_datetime=sensor_datetime, sensor_properties=copy.deepcopy(first_sensor.sensor_properties)
     )
 
     for expected_time_index, true_bg_val in enumerate(true_bg_trace):
@@ -284,3 +283,90 @@ def test_recreate_icgm_sensor_and_values_with_same_random_seed():
 
     assert np.array_equal(first_sensor.sensor_bg_history[2:], second_sensor.sensor_bg_history[2:])
 
+
+def test_icgm_sensor_generation_mimics_icgm_sensitivity_analysis_behavior():
+    """ Mimic the way the iCGMSensor is going to work in the icgm sensitivity analyis
+    [x] make sure that each sensor in a batch of sensors for a virtual patient is different
+    [x] make sure that temp_basal_only sensors are identical to correction_bolus and meal_bolus sensors
+    """
+
+    number_of_virtual_patients_to_test = 10
+    number_of_sensors_in_a_batch = 30
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    all_virtual_patients = dict()
+
+    test_sensor_properties = {
+        "bias_type": "percentage_of_value",
+        "a": 0,
+        "b": 1,
+        "mu": 2,
+        "sigma": 1,
+        "bias_drift_type": "random",
+        "bias_drift_range_start": 0.9,
+        "bias_drift_range_end": 1.1,
+        "bias_drift_oscillations": 1,
+        "noise_coefficient": 5,
+        "delay": 10,
+    }
+
+    # first create the sensors in a manner similar to the icgm sensitivity analysis
+    for vp_index in range(number_of_virtual_patients_to_test):
+        for bg_condition_index in range(1, 10):
+            for sensor_in_batch_index in range(number_of_sensors_in_a_batch):
+                experiment_type = "temp_basal_only"
+                virtual_patient_dict = dict()
+                temp_basal_sim_id = "vp{}.bg{}.s{}.{}".format(
+                    vp_index, bg_condition_index, sensor_in_batch_index, experiment_type
+                )
+                virtual_patient_dict["sim_id"] = temp_basal_sim_id
+                virtual_patient_dict["start_time"] = sensor_datetime
+                virtual_patient_dict["patient"] = {"name": "Virtual Patient"}
+                icgm_sensor = iCGMSensor(current_datetime=sensor_datetime, sensor_properties=test_sensor_properties,)
+                virtual_patient_dict["patient"]["sensor"] = copy.deepcopy(icgm_sensor.sensor_properties)
+                all_virtual_patients[temp_basal_sim_id] = virtual_patient_dict
+
+                for experiment_type in ["correction_bolus", "meal_bolus"]:
+                    virtual_patient_dict = dict()
+                    sim_id_name = "vp{}.bg{}.s{}.{}".format(
+                        vp_index, bg_condition_index, sensor_in_batch_index, experiment_type
+                    )
+                    virtual_patient_dict["sim_id"] = sim_id_name
+                    virtual_patient_dict["start_time"] = sensor_datetime
+                    virtual_patient_dict["patient"] = {"name": "Virtual Patient"}
+                    icgm_sensor = iCGMSensor(
+                        current_datetime=sensor_datetime,
+                        sensor_properties=all_virtual_patients[temp_basal_sim_id]["patient"]["sensor"],
+                    )
+                    virtual_patient_dict["patient"]["sensor"] = copy.deepcopy(icgm_sensor.sensor_properties)
+                    all_virtual_patients[sim_id_name] = virtual_patient_dict
+
+    # next, make sure that the sensor properties are different for each sensor in the batch,
+    # but the same between experiment types
+    for vp_index in range(number_of_virtual_patients_to_test):
+        for bg_condition_index in range(1, 10):
+            for sensor_in_batch_index in range(number_of_sensors_in_a_batch):
+                sim_id_name = "vp{}.bg{}.s{}.{}".format(
+                    vp_index, bg_condition_index, sensor_in_batch_index, "temp_basal_only"
+                )
+                sensor_b_properties = all_virtual_patients[sim_id_name]["patient"]["sensor"]
+
+                # compare sensors in a batch to make sure that are different
+                for compare_sensor_in_batch_index in range(number_of_sensors_in_a_batch):
+                    if sensor_in_batch_index != compare_sensor_in_batch_index:
+                        print(sensor_in_batch_index, compare_sensor_in_batch_index)
+                        sim_id_name_b_compare = "vp{}.bg{}.s{}.{}".format(
+                            vp_index, bg_condition_index, compare_sensor_in_batch_index, "temp_basal_only"
+                        )
+                        compare_sensor_b_properties = all_virtual_patients[sim_id_name_b_compare]["patient"]["sensor"]
+                        for key in sensor_b_properties.keys():
+                            assert ~np.array_equal(sensor_b_properties[key], compare_sensor_b_properties[key])
+
+                # compare correction_bolus and meal_bolus with temp_basal_only to make sure they are the same
+                for experiment_type in ["correction_bolus", "meal_bolus"]:
+                    sim_id_name_b_compare = "vp{}.bg{}.s{}.{}".format(
+                        vp_index, bg_condition_index, sensor_in_batch_index, experiment_type
+                    )
+                    compare_sensor_b_properties = all_virtual_patients[sim_id_name_b_compare]["patient"]["sensor"]
+                    print(sim_id_name, sim_id_name_b_compare)
+                    for key in sensor_b_properties.keys():
+                        assert np.array_equal(sensor_b_properties[key], compare_sensor_b_properties[key])
