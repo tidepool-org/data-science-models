@@ -99,3 +99,13 @@ venv.bak/
 .spyderproject
 .spyproject
 
+
+data/icgm-sensitivity-analysis-scenarios-2020-07-10/
+
+data/tbddp_bg_chains/
+
+data/ten 1200 day datasets/tbddp_bg_chains/
+
+*.xlsx
+*.tsv
+*.json
