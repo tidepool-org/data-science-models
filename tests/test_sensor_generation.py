@@ -129,7 +129,7 @@ def test_that_results_are_same_before_after_sensor_property_refactor():
     )
 
     # test that the same icgm traces are generated
-    assert np.array_equal(new_benchmark_sensor_generator_obj.icgm_traces, benchmark_sensor_generator_obj.icgm_traces)
+    assert np.array_equal(np.round(new_benchmark_sensor_generator_obj.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces))
 
 
 def test_that_results_are_repeatable_before_after_sensor_property_refactor():
