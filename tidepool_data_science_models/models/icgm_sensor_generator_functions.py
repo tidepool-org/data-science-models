@@ -17,6 +17,9 @@ import numpy as np
 from math import sqrt
 from scipy.stats import johnsonsu
 from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
+
+
 import datetime
 
 # from pyloopkit.dose import DoseType
@@ -196,10 +199,12 @@ def generate_icgm_sensors(
 
     # get the initial bias
     a, b, mu, sigma = dist_params
-    initial_bias = johnsonsu.rvs(a=a, b=b, loc=mu, scale=sigma, size=n_sensors)
+    #initial_bias = johnsonsu.rvs(a=a, b=b, loc=mu, scale=sigma, size=n_sensors)
+    initial_bias = np.zeros(n_sensors)
 
     # add noise
-    noise = np.random.normal(loc=0, scale=np.max([noise_coefficient, EPS]), size=(n_sensors, len(true_bg_trace)))
+    #noise = np.random.normal(loc=0, scale=np.max([noise_coefficient, EPS]), size=(n_sensors, len(true_bg_trace)))
+    noise = np.zeros((n_sensors, len(true_bg_trace)))
 
     # bias drift
     if "none" in bias_drift_type:
@@ -241,10 +246,14 @@ def generate_icgm_sensors(
     #     iCGM = ((true_matrix + bias_matrix) * drift_multiplier) + noise
 
     # add delay or lag to the iCGM traces
-    delay_steps = np.int(np.round(delay / 5))
-    delayed_iCGM = np.insert(
-        values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
-    )
+    if delay > 0:
+        delay_steps = np.int(np.round(delay / 5))
+        delayed_iCGM = np.insert(
+            values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
+        )
+    else:
+        delayed_iCGM = iCGM
+
 
     # add spurious events to the trace
     # TODO: add in successive spurious events later, for now each spurious event is 5 minutes and can occur at any time
@@ -1314,6 +1323,33 @@ def get_search_range(
     (a_init, b_init, mu_init, sigma_init), pcov = curve_fit(
         find_johnson_params, perc_points_40_70, icgm_errors_40_70, bounds=a_b_mu_sigma_bounds
     )
+
+    #Plot the curve fit
+    '''
+    (a_init_no_bounds, b_init_no_bounds, mu_init_no_bounds, sigma_init_no_bounds), pcov_no_bounds = curve_fit(
+        find_johnson_params, perc_points_40_70, icgm_errors_40_70
+    )
+
+    plt.plot(perc_points_40_70, icgm_errors_40_70, 'b-', label='data')
+
+    plt.plot(perc_points_40_70, find_johnson_params(perc_points_40_70, a_init_no_bounds, b_init_no_bounds, mu_init_no_bounds, sigma_init_no_bounds), 'r-',
+             label='fit - no bounds: a=%5.3f, b=%5.3f, mmu=%5.3f, sigma=%5.3f' % tuple(
+                 np.array([a_init_no_bounds, b_init_no_bounds, mu_init_no_bounds, sigma_init_no_bounds])))
+
+
+    plt.plot(perc_points_40_70, find_johnson_params(perc_points_40_70, a_init, b_init, mu_init, sigma_init), 'g--',
+             label='fit - with bounds: a=%5.3f, b=%5.3f, mmu=%5.3f, sigma=%5.3f' % tuple(np.array([a_init, b_init, mu_init, sigma_init])))
+
+    plt.xlabel('perc_points_40_70')
+    plt.ylabel('icgm_errors_40_70')
+    plt.legend()
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1)
+    rv = johnsonsu(a_init, b_init, mu_init, sigma_init)
+    ax.plot(perc_points_40_70, rv.pdf(perc_points_40_70), 'k-', lw=2, label="Johnson's pdf")
+    fig.show()
+    '''
 
     # limit the number of spurious steps by NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_STEPS (defaults to 5)
     spurious_step = np.round(
