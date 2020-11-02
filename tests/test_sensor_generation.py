@@ -110,11 +110,11 @@ def test_that_results_are_same_before_after_sensor_property_refactor():
     """
 
     benchmark_sensor_generator_obj = pickle.load(
-        open("benchmark_results_with_df_sensor_properties_2020_10_30.pkl", "rb")
+        open(os.path.join(".", "tests", "benchmark_results_with_df_sensor_properties_2020_10_30.pkl"), "rb")
     )
 
     new_benchmark_sensor_generator_obj = pickle.load(
-        open("benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl", "rb")
+        open(os.path.join(".", "tests", "benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl"), "rb")
     )
 
     assert new_benchmark_sensor_generator_obj.sc_thresholds == benchmark_sensor_generator_obj.sc_thresholds
@@ -139,7 +139,7 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
     """
 
     benchmark_sensor_generator_obj = pickle.load(
-        open("benchmark_results_with_df_sensor_properties_2020_10_30.pkl", "rb")
+        open(os.path.join(".", "tests", "benchmark_results_with_df_sensor_properties_2020_10_30.pkl"), "rb")
     )
 
     batch_size = 3
@@ -187,7 +187,7 @@ def test_given_same_true_bg_trace_and_sensor_properties_create_new_sensor_and_ge
     """
 
     benchmark_sensor_generator_obj = pickle.load(
-        open(os.path.join("..", "tests", "benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl"), "rb")
+        open(os.path.join(".", "tests", "benchmark_results_with_new_dict_sensor_properties_2020_11_01.pkl"), "rb")
     )
 
     benchmark_sensor = benchmark_sensor_generator_obj.sensors[0]
@@ -353,7 +353,6 @@ def test_icgm_sensor_generation_mimics_icgm_sensitivity_analysis_behavior():
                 # compare sensors in a batch to make sure that are different
                 for compare_sensor_in_batch_index in range(number_of_sensors_in_a_batch):
                     if sensor_in_batch_index != compare_sensor_in_batch_index:
-                        print(sensor_in_batch_index, compare_sensor_in_batch_index)
                         sim_id_name_b_compare = "vp{}.bg{}.s{}.{}".format(
                             vp_index, bg_condition_index, compare_sensor_in_batch_index, "temp_basal_only"
                         )
@@ -367,6 +366,5 @@ def test_icgm_sensor_generation_mimics_icgm_sensitivity_analysis_behavior():
                         vp_index, bg_condition_index, sensor_in_batch_index, experiment_type
                     )
                     compare_sensor_b_properties = all_virtual_patients[sim_id_name_b_compare]["patient"]["sensor"]
-                    print(sim_id_name, sim_id_name_b_compare)
                     for key in sensor_b_properties.keys():
                         assert np.array_equal(sensor_b_properties[key], compare_sensor_b_properties[key])
