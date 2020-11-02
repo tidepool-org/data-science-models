@@ -308,7 +308,7 @@ class iCGMSensor(Sensor):
         noise = self.sensor_properties["noise"][self.time_index]
         icgm_value = (delayed_true_bg * self.sensor_properties["bias_factor"] * drift_multiplier) + noise
 
-        return icgm_value
+        return icgm_value[0]  # CAS: TMP fix
 
     def get_bg_trace(self, true_bg_trace):
         """
