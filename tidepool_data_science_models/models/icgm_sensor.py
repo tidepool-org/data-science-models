@@ -91,7 +91,8 @@ class iCGMSensor(Sensor):
         if "random_seed" in sensor_properties_keys:
             np.random.seed(seed=sensor_properties["random_seed"])
         else:
-            self.sensor_properties["random_seed"] = int(datetime.datetime.utcnow().timestamp())
+            # NOTE: not including the possibility of a seed of 0, since that is the default
+            self.sensor_properties["random_seed"] = np.random.randint(1, int(2**32 - 1))
 
         # noise
         if "noise" not in sensor_properties_keys:
