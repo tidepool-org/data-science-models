@@ -171,7 +171,7 @@ class iCGMSensor(Sensor):
                         if "bias_drift_oscillations" not in sensor_properties_keys:
                             raise Exception("Missing Bias Drift Sensor Properties, bias_drift_oscillations")
                         if "phi_drift" not in sensor_properties_keys:
-                            raise Exception("Missing Bias Drift Sensor Properties, phi_drift")
+                            self.sensor_properties["phi_drift"] = np.random.uniform(low=-np.pi, high=np.pi, size=1)
 
                         t = np.linspace(
                             0,
