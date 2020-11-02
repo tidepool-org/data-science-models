@@ -91,10 +91,14 @@ class iCGMSensorGenerator(object):
         np.random.seed(seed=random_seed)
 
         self.icgm_traces = None
-        self.individual_sensor_properties = None
+        self.sensor_properties = None
         self.batch_sensor_brute_search_results = None
         self.batch_sensor_properties = None
-        self.dist_params = None
+        self.icgm_special_controls_accuracy_table = None
+        self.g6_loss = None
+        self.g6_table = None
+        self.loss_of_best_search = None
+        self.percent_pass = None
 
         return
 
@@ -131,11 +135,31 @@ class iCGMSensorGenerator(object):
             ),
             workers=-1,
             full_output=True,
-            finish=fmin,  # fmin will look for a local minimum around the grid point
+            finish=None,  # fmin will look for a local minimum around the grid point
         )
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
         self.dist_params = self.batch_sensor_brute_search_results[0]
+
+        # %% add in check that optimal result passed
+        self.generate_sensors(self.batch_training_size, sensor_start_datetime=0)
+
+        temp_df = sf.preprocess_data(
+            true_bg_trace, self.icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900]
+        )
+
+        self.icgm_special_controls_accuracy_table = sf.calc_icgm_sc_table(temp_df, "generic")
+
+        if self.use_g6_accuracy_in_loss:
+            self.g6_loss, self.g6_table = sf.calc_dexcom_loss(temp_df, self.batch_training_size)
+
+        else:
+            self.g6_loss, self.g6_table = np.nan, np.nan
+
+        self.loss_of_best_search, self.percent_pass = sf.calc_icgm_special_controls_loss(
+            self.icgm_special_controls_accuracy_table, self.g6_loss
+        )
+
 
         return
 
@@ -159,7 +183,7 @@ class iCGMSensorGenerator(object):
 
         # STEP 3 apply the results
         # Convert to a generate_sensor(global_params) --> Sensor(obj)
-        self.icgm_traces, self.individual_sensor_properties = sf.generate_icgm_sensors(
+        self.icgm_traces, self.sensor_properties = sf.generate_icgm_sensors(
             self.true_bg_trace,
             dist_params=self.dist_params[:4],
             n_sensors=n_sensors,
@@ -175,10 +199,13 @@ class iCGMSensorGenerator(object):
         sensors = []
 
         for sensor_num in range(n_sensors):
-            sensor_properties = self.individual_sensor_properties.loc[sensor_num]
+            ind_sensor_properties = dict()
+            for key in self.sensor_properties.keys():
+                ind_sensor_properties[key] = self.sensor_properties[key][sensor_num]
+
             sensors.append(
                 iCGMSensor(
-                    sensor_properties=sensor_properties,
+                    sensor_properties=ind_sensor_properties,
                     time_index=sensor_start_time_index,
                     current_datetime=sensor_start_datetime,
                 )
