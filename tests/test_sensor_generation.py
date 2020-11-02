@@ -229,3 +229,58 @@ def test_given_same_true_bg_trace_and_sensor_properties_create_new_sensor_and_ge
             #     benchmark_sensor_generator_obj.sensor_properties["bias_factor"][0],
             # )
             sensor_datetime += datetime.timedelta(minutes=5)
+
+
+def test_recreate_icgm_sensor_and_values_with_same_random_seed():
+# we should be able to create a sensor with iCGMSensor and then be able to recreate using the same random seed
+# create a new sensor with the benchmark sensor properties
+
+    df, _ = create_dataset(
+        kind="sine",
+        N=288 * 10,
+        min_value=40,
+        max_value=400,
+        time_interval=5,
+        flat_value=np.nan,
+        oscillations=1,
+        random_seed=0,
+    )
+
+    true_bg_trace = df["value"].values
+
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+
+    # NOTE: random seed is not specified, but rather is gathered from the sensor instantiation
+    first_sensor = iCGMSensor(
+        current_datetime=sensor_datetime,
+        sensor_properties={
+            "bias_type": "percentage_of_value",
+            "initial_bias": 3,
+            "bias_norm_factor": 55,
+            "bias_drift_type": "random",
+            "phi_drift": 0,
+            "bias_drift_range_start": 0.9,
+            "bias_drift_range_end": 1.1,
+            "bias_drift_oscillations": 1,
+            "noise_per_sensor": 7,
+            "delay": 10,
+        }
+    )
+
+    # make an icgm trace using the udpate function
+    for expected_time_index, true_bg_val in enumerate(true_bg_trace):
+        first_sensor.update(sensor_datetime, patient_true_bg=true_bg_val)
+        sensor_datetime += datetime.timedelta(minutes=5)
+
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    second_sensor = iCGMSensor(
+        current_datetime=sensor_datetime,
+        sensor_properties=copy.deepcopy(first_sensor.sensor_properties)
+    )
+
+    for expected_time_index, true_bg_val in enumerate(true_bg_trace):
+        second_sensor.update(sensor_datetime, patient_true_bg=true_bg_val)
+        sensor_datetime += datetime.timedelta(minutes=5)
+
+    assert np.array_equal(first_sensor.sensor_bg_history[2:], second_sensor.sensor_bg_history[2:])
+

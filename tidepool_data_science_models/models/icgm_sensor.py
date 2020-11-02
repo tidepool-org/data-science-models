@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import datetime
 import copy
+from scipy.stats import johnsonsu
 
 
 class SensorExpiredError(Exception):
@@ -90,35 +91,60 @@ class iCGMSensor(Sensor):
         if "random_seed" in sensor_properties_keys:
             np.random.seed(seed=sensor_properties["random_seed"])
         else:
-            self.sensor_properties["random_seed"] = np.random.get_state()[1][0]
+            self.sensor_properties["random_seed"] = int(datetime.datetime.utcnow().timestamp())
 
         # noise
         if "noise" not in sensor_properties_keys:
             if "noise_per_sensor" not in sensor_properties_keys:
                 if "noise_coefficient" not in sensor_properties_keys:
-                    raise Exception("Missing Noise Sensor Properties, must pass in a noise coefficient")
+                    raise Exception("Missing Noise Sensor Properties, must pass in a noise_per_sensor")
                 else:
-                    # noise component
+                    self.sensor_properties["noise_per_sensor"] = np.random.uniform(
+                        low=sys.float_info.epsilon, high=sensor_properties["noise_coefficient"], size=1
+                    )
                     self.sensor_properties["noise"] = np.random.normal(
                         loc=0,
-                        scale=np.max([sensor_properties["noise_per_sensor"], sys.float_info.epsilon]),
+                        scale=np.max([self.sensor_properties["noise_per_sensor"], sys.float_info.epsilon]),
                         size=self.num_readings_sensor_life,
                     )
+            else:
+                self.sensor_properties["noise"] = np.random.normal(
+                    loc=0,
+                    scale=np.max([sensor_properties["noise_per_sensor"], sys.float_info.epsilon]),
+                    size=self.num_readings_sensor_life,
+                )
 
         # bias
-        if "bias_factor" not in sensor_properties_keys:
-            if "bias_type" not in sensor_properties_keys:
-                if "bias_bias_norm_factor" not in sensor_properties_keys:
-                    if "percentage_of_value" in sensor_properties["bias_type"]:
-                        self.sensor_properties["norm_factor"] = 55
-                    else:
-                        self.sensor_properties["norm_factor"] = 0
+        if "bias_type" not in sensor_properties_keys:
+            raise Exception("Missing Bias Type, must pass in a bias_type")
+        else:
+            if "bias_norm_factor" not in sensor_properties_keys:
+                if "percentage_of_value" in sensor_properties["bias_type"]:
+                    self.sensor_properties["bias_norm_factor"] = 55
+                else:
+                    self.sensor_properties["bias_norm_factor"] = 0
 
-                    if "initial_bias" not in sensor_properties_keys:
-                        # bias of individual sensor
-                        self.sensor_properties["bias_factor"] = (
-                            self.sensor_properties["norm_factor"] + self.sensor_properties["initial_bias"]
-                        ) / (np.max([self.sensor_properties["norm_factor"], 1]))
+        if "initial_bias" not in sensor_properties_keys:
+            if (
+                ("a" not in sensor_properties_keys)
+                | ("b" not in sensor_properties_keys)
+                | ("mu" not in sensor_properties_keys)
+                | ("sigma" not in sensor_properties_keys)
+            ):
+                raise Exception("Missing initial bias and Johnsonsu distribution (a, b, mu, and sigma)")
+            else:
+                self.sensor_properties["initial_bias"] = johnsonsu.rvs(
+                    a=self.sensor_properties["a"],
+                    b=self.sensor_properties["b"],
+                    loc=self.sensor_properties["mu"],
+                    scale=self.sensor_properties["sigma"],
+                    size=1
+                )
+
+        if "bias_factor" not in sensor_properties_keys:
+            self.sensor_properties["bias_factor"] = (
+                self.sensor_properties["bias_norm_factor"] + self.sensor_properties["initial_bias"]
+            ) / (np.max([self.sensor_properties["bias_norm_factor"], 1]))
 
         # bias drift
         if "drift_multiplier" not in sensor_properties_keys:
