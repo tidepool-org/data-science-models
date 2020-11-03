@@ -249,8 +249,8 @@ def generate_icgm_sensors(
     )
 
     # add in spurious events here
+    spurious = np.zeros(shape=np.shape(true_matrix))
     if max_number_of_spurious_events_per_sensor_life > 0:
-        spurious = np.zeros(shape=np.shape(true_matrix))
         n_spurious_events_per_sensor = np.random.randint(low=0, high=max_number_of_spurious_events_per_sensor_life+1, size=n_sensors)
 
         for sensor_idx, n_spurious_events in enumerate(n_spurious_events_per_sensor):
@@ -303,6 +303,7 @@ def generate_icgm_sensors(
     sensor_properties["bias_factor_matrix"] = bias_factor_matrix
     sensor_properties["drift_multiplier"] = drift_multiplier
     sensor_properties["noise"] = noise
+    sensor_properties["spurious"] = spurious
 
     return delayed_iCGM, sensor_properties
 
@@ -428,6 +429,8 @@ def johnsonsu_icgm_sensor(
     use_g6_criteria=False,
     max_number_of_spurious_events_per_sensor_life=0
 ):
+    if len(dist_params) == 9:
+        max_number_of_spurious_events_per_sensor_life = dist_params[8]
 
     icgm_traces, _ = generate_icgm_sensors(
         true_bg_trace,

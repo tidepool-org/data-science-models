@@ -193,18 +193,21 @@ class iCGMSensorGenerator(object):
         if self.dist_params is None:
             raise Exception("iCGM Sensor Generator has not been fit() to a true_bg_trace distribution.")
 
-        (
-            a,
-            b,
-            mu,
-            sigma,
-            noise_coefficient,
-            bias_drift_range_min,
-            bias_drift_range_max,
-            bias_drift_oscillations,
-        ) = self.dist_params
+        if len(self.dist_params) == 9:
+            self.max_number_of_spurious_events_per_sensor_life = self.dist_params[8]
 
-        bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
+        # (
+        #     a,
+        #     b,
+        #     mu,
+        #     sigma,
+        #     noise_coefficient,
+        #     bias_drift_range_min,
+        #     bias_drift_range_max,
+        #     bias_drift_oscillations,
+        # ) = self.dist_params
+
+        # bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
 
         # STEP 3 apply the results
         # Convert to a generate_sensor(global_params) --> Sensor(obj)
@@ -214,9 +217,9 @@ class iCGMSensorGenerator(object):
             n_sensors=n_sensors,
             bias_type=self.bias_type,
             bias_drift_type=self.bias_drift_type,
-            bias_drift_range=bias_drift_range,
-            bias_drift_oscillations=bias_drift_oscillations,
-            noise_coefficient=noise_coefficient,
+            bias_drift_range=self.dist_params[5:7],
+            bias_drift_oscillations=self.dist_params[7],
+            noise_coefficient=self.dist_params[4],
             delay=self.delay,
             random_seed=self.random_seed,
             max_number_of_spurious_events_per_sensor_life=self.max_number_of_spurious_events_per_sensor_life

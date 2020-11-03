@@ -3,7 +3,7 @@ import sys
 import datetime
 import copy
 from scipy.stats import johnsonsu
-
+from tidepool_data_science_models.models.icgm_sensor_generator_functions import generate_spurious_bg
 
 class SensorExpiredError(Exception):
 
@@ -301,6 +301,10 @@ class iCGMSensor(Sensor):
         drift_multiplier = self.sensor_properties["drift_multiplier"][self.time_index]
         noise = self.sensor_properties["noise"][self.time_index]
         icgm_value = (delayed_true_bg * self.sensor_properties["bias_factor"] * drift_multiplier) + noise
+
+        if "spurious" in self.sensor_properties:
+            if self.sensor_properties["spurious"][self.time_index] == 1:
+                icgm_value = generate_spurious_bg(true_bg_value)
 
         return icgm_value
 
