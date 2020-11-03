@@ -125,6 +125,58 @@ def get_95percent_bounds(percent_values_within):
     return lower_bound, upper_bound
 
 
+def generate_spurious_bg(true_bg_value, icgm_range=(40, 400)):
+    # While it is possible for spurious events to result in values < 40 and > 400 mg/dL,
+    # these extreme values are outside of the device measurement range and therefore are not
+    # used in the calculation of meeting the iCGM specifications and will not be considered in this version.
+    minimum_icgm_value = icgm_range[0]
+    maximum_icgm_value = icgm_range[1]
+
+    if true_bg_value < 70:
+        """
+        The following iCGM special controls went into determining the value of the spurious events < 70:
+
+        (D) For all iCGM measurements less than 70 mg/dL, the percentage of iCGM measurements within +/-
+        40 mg/dL of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 98%.
+
+        (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above
+        180 mg/dL.
+        """
+        low_options = np.arange(minimum_icgm_value, true_bg_value - 40)
+        high_options = np.arange(true_bg_value + 40, 181)
+
+    elif true_bg_value > 180:
+        """
+        The following iCGM special controls went into determining the value of the spurious events > 180:
+
+        (F) For all iCGM measurements greater than 180 mg/dL, the percentage of iCGM measurements within
+        +/- 40% of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 99%.
+
+        (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read
+        less than 70 mg/dL.
+        """
+        low_options = np.arange(70, np.floor(true_bg_value * 0.6))
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), maximum_icgm_value)
+
+    # 70 to 180
+    else:
+        """
+        The following iCGM special controls went into determining the value of the spurious events 70 - 180:
+
+        (E) For all iCGM measurements from 70-180 mg/dL, the percentage of iCGM measurements within +/-
+        40% of the corresponding blood glucose value must be calculated, and the lower one-sided 95%
+        confidence bound must exceed 99%.
+        """
+        low_options = np.arange(minimum_icgm_value, np.floor(true_bg_value * 0.6))
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), maximum_icgm_value)
+
+    return np.random.choice(np.concatenate([low_options, high_options]), 1).item()
+
+
+
+
 def generate_icgm_sensors(
     true_bg_trace,
     dist_params,  # [a, b, mu, sigma]
@@ -198,7 +250,20 @@ def generate_icgm_sensors(
 
     # add in spurious events here
     if max_number_of_spurious_events_per_sensor_life > 0:
-        raise Exception("max_number_of_spurious_events_per_sensor_life has not been implemented yet")
+        spurious = np.zeros(shape=np.shape(true_matrix))
+        n_spurious_events_per_sensor = np.random.randint(low=0, high=max_number_of_spurious_events_per_sensor_life+1, size=n_sensors)
+
+        for sensor_idx, n_spurious_events in enumerate(n_spurious_events_per_sensor):
+            spurious_index = np.random.randint(0, len(true_bg_trace), (1, n_spurious_events))
+            spurious[sensor_idx, spurious_index] = 1
+
+        # Add spurious values to the delayed icgm trace
+        delayed_iCGM[spurious == 1] = np.array(
+            [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[spurious == 1].flatten()]
+        )
+    else:
+        n_spurious_events_per_sensor = np.zeros(n_sensors)
+
 
     # capture sensor characteristics for future simulation
     sensor_properties = dict()
@@ -222,15 +287,17 @@ def generate_icgm_sensors(
     sensor_properties["bias_drift_range_end"] = [bias_drift_range[1]] * n_sensors
     sensor_properties["bias_drift_oscillations"] = [bias_drift_oscillations] * n_sensors
 
-    # noise and delay
+    # noise, delay, and spurious events
     sensor_properties["noise_coefficient"] = [noise_coefficient] * n_sensors
     sensor_properties["delay"] = [delay] * n_sensors
+    sensor_properties["max_number_of_spurious_events_per_sensor_life"] = [max_number_of_spurious_events_per_sensor_life] * n_sensors
 
     # %% capture individual sensor values
     sensor_properties["initial_bias"] = initial_bias
     sensor_properties["bias_factor"] = bias_factor
     sensor_properties["phi_drift"] = phi
     sensor_properties["noise_per_sensor"] = noise_per_sensor
+    sensor_properties["spurious_events_per_sensor"] = n_spurious_events_per_sensor
 
     # %% capture individual sensor traces
     sensor_properties["bias_factor_matrix"] = bias_factor_matrix
