@@ -300,7 +300,7 @@ def generate_icgm_sensors(
     sensor_properties["spurious_events_per_sensor"] = n_spurious_events_per_sensor
 
     # %% capture individual sensor traces
-    sensor_properties["bias_factor_matrix"] = bias_factor_matrix
+    # sensor_properties["bias_factor_matrix"] = bias_factor_matrix
     sensor_properties["drift_multiplier"] = drift_multiplier
     sensor_properties["noise"] = noise
     sensor_properties["spurious"] = spurious
