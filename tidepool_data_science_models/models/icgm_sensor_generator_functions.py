@@ -254,7 +254,7 @@ def generate_icgm_sensors(
         n_spurious_events_per_sensor = np.random.randint(low=0, high=max_number_of_spurious_events_per_sensor_life+1, size=n_sensors)
 
         for sensor_idx, n_spurious_events in enumerate(n_spurious_events_per_sensor):
-            spurious_index = np.random.randint(0, len(true_bg_trace), (1, n_spurious_events))
+            spurious_index = np.random.choice(range(len(true_bg_trace)), size=n_spurious_events, replace=False)
             spurious[sensor_idx, spurious_index] = 1
 
         # Add spurious values to the delayed icgm trace
