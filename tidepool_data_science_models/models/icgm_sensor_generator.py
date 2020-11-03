@@ -36,7 +36,8 @@ class iCGMSensorGenerator(object):
         true_dataset_name="default",
         brute_force_search_range=tuple(),
         workers=-1,
-        brute_force_finish=None
+        brute_force_finish=None,
+        max_number_of_spurious_events_per_sensor_life=0
     ):
         """
         Sensor Generator Initialization
@@ -89,6 +90,7 @@ class iCGMSensorGenerator(object):
         self.true_dataset_name = true_dataset_name
         self.workers = workers
         self.brute_force_finish = brute_force_finish
+        self.max_number_of_spurious_events_per_sensor_life = max_number_of_spurious_events_per_sensor_life
 
         # pick delay based upon data in:
         # Vettoretti et al., 2019, Sensors 2019, 19, 5320
@@ -157,6 +159,7 @@ class iCGMSensorGenerator(object):
                 self.random_seed,
                 self.verbose,
                 self.use_g6_accuracy_in_loss,
+                self.max_number_of_spurious_events_per_sensor_life
             ),
             workers=self.workers,
             full_output=True,
@@ -216,6 +219,7 @@ class iCGMSensorGenerator(object):
             noise_coefficient=noise_coefficient,
             delay=self.delay,
             random_seed=self.random_seed,
+            max_number_of_spurious_events_per_sensor_life=self.max_number_of_spurious_events_per_sensor_life
         )
 
         sensors = []

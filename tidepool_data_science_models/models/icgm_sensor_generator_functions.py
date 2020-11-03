@@ -136,6 +136,7 @@ def generate_icgm_sensors(
     noise_coefficient=0,  # (0 ~ 60dB, 5 ~ 36 dB, 10, 30 dB)
     delay=5,  # (suggest 0, 5, 10, 15)
     random_seed=0,
+    max_number_of_spurious_events_per_sensor_life=0
 ):
     # set a random seed for reproducibility
 
@@ -194,6 +195,10 @@ def generate_icgm_sensors(
     delayed_iCGM = np.insert(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
+
+    # add in spurious events here
+    if max_number_of_spurious_events_per_sensor_life > 0:
+        raise Exception("max_number_of_spurious_events_per_sensor_life has not been implemented yet")
 
     # capture sensor characteristics for future simulation
     sensor_properties = dict()
@@ -354,6 +359,7 @@ def johnsonsu_icgm_sensor(
     random_seed=0,
     verbose=False,
     use_g6_criteria=False,
+    max_number_of_spurious_events_per_sensor_life=0
 ):
 
     icgm_traces, _ = generate_icgm_sensors(
@@ -367,6 +373,7 @@ def johnsonsu_icgm_sensor(
         noise_coefficient=dist_params[4],
         delay=delay,
         random_seed=random_seed,
+        max_number_of_spurious_events_per_sensor_life=max_number_of_spurious_events_per_sensor_life
     )
 
     df = preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
