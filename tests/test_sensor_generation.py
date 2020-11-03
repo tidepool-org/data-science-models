@@ -34,6 +34,16 @@ def test_that_fit_icgm_sensor_has_correct_stats():
         bias_drift_type="random",
         random_seed=0,
         verbose=False,
+        brute_force_search_range=(
+            slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
+            slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
+            slice(-7, 8, 1),  # mu of johnsonsu
+            slice(1, 8, 1),  # sigma of johnsonsu
+            slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+            slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
+            slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
+            slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
+        ),
     )
 
     sensor_generator.fit(df["value"].values)
@@ -129,7 +139,9 @@ def test_that_results_are_same_before_after_sensor_property_refactor():
     )
 
     # test that the same icgm traces are generated
-    assert np.array_equal(np.round(new_benchmark_sensor_generator_obj.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces))
+    assert np.array_equal(
+        np.round(new_benchmark_sensor_generator_obj.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces)
+    )
 
 
 def test_that_results_are_repeatable_before_after_sensor_property_refactor():
@@ -151,6 +163,16 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
         bias_drift_type="random",
         random_seed=random_seed,
         verbose=False,
+        brute_force_search_range=(
+            slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
+            slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
+            slice(-7, 8, 1),  # mu of johnsonsu
+            slice(1, 8, 1),  # sigma of johnsonsu
+            slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+            slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
+            slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
+            slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
+        ),
     )
 
     # refit to the same benchmark true bg dataset
@@ -169,7 +191,9 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
     )
 
     # test that the same icgm traces are generated
-    assert np.array_equal(np.round(new_sensor_generator.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces))
+    assert np.array_equal(
+        np.round(new_sensor_generator.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces)
+    )
 
     # this assertion is now changed given that individual_sensor_properties have been changed from df to dict,
     # BUT, the icgm traces would only be exactly equal if all of the sensor properties were identical,
