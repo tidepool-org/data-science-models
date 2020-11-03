@@ -101,7 +101,7 @@ class iCGMSensor(Sensor):
                     raise Exception("Missing Noise Sensor Properties, must pass in a noise_per_sensor")
                 else:
                     self.sensor_properties["noise_per_sensor"] = np.random.uniform(
-                        low=sys.float_info.epsilon, high=sensor_properties["noise_coefficient"], size=1
+                        low=sys.float_info.epsilon, high=sensor_properties["noise_coefficient"]
                     )
                     self.sensor_properties["noise"] = np.random.normal(
                         loc=0,
@@ -138,8 +138,7 @@ class iCGMSensor(Sensor):
                     a=self.sensor_properties["a"],
                     b=self.sensor_properties["b"],
                     loc=self.sensor_properties["mu"],
-                    scale=self.sensor_properties["sigma"],
-                    size=1
+                    scale=self.sensor_properties["sigma"]
                 )
 
         if "bias_factor" not in sensor_properties_keys:
@@ -172,7 +171,7 @@ class iCGMSensor(Sensor):
                         if "bias_drift_oscillations" not in sensor_properties_keys:
                             raise Exception("Missing Bias Drift Sensor Properties, bias_drift_oscillations")
                         if "phi_drift" not in sensor_properties_keys:
-                            self.sensor_properties["phi_drift"] = np.random.uniform(low=-np.pi, high=np.pi, size=1)
+                            self.sensor_properties["phi_drift"] = np.random.uniform(low=-np.pi, high=np.pi)
 
                         t = np.linspace(
                             0,
