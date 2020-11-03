@@ -35,6 +35,8 @@ class iCGMSensorGenerator(object):
         true_bg_trace=None,
         true_dataset_name="default",
         brute_force_search_range=tuple(),
+        workers=-1,
+        brute_force_finish=None
     ):
         """
         Sensor Generator Initialization
@@ -59,6 +61,10 @@ class iCGMSensorGenerator(object):
             Name of the true bg dataset used to fit
         brute_force_search_range : tuple
             A tuple that contains the search space slices for brute force search. Default to narrow search range (for speed)
+        workers : int
+            Number of cores to use during brute force fit (default to -1, use all, use 1 if debugging this code)
+        brute_force_finish : None or string
+            Default to None, "fmin" will look for a local minimum around grid point(s) at the end of search
         """
 
         if sc_thresholds is None:
@@ -81,6 +87,8 @@ class iCGMSensorGenerator(object):
         self.verbose = verbose
         self.true_bg_trace = true_bg_trace
         self.true_dataset_name = true_dataset_name
+        self.workers = workers
+        self.brute_force_finish = brute_force_finish
 
         # pick delay based upon data in:
         # Vettoretti et al., 2019, Sensors 2019, 19, 5320
@@ -93,9 +101,9 @@ class iCGMSensorGenerator(object):
             self.johnson_parameter_search_range = (
                 slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
                 slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
-                slice(-7, 8, 1),  # mu of johnsonsu
-                slice(1, 8, 1),  # sigma of johnsonsu
-                slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+                slice(1, 3, 1),  # mu of johnsonsu
+                slice(1, 3, 1),  # sigma of johnsonsu
+                slice(1, 3, 1),  # max allowable sensor noise in batch of sensors
                 slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
                 slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
                 slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
@@ -121,19 +129,14 @@ class iCGMSensorGenerator(object):
 
         return
 
-    def fit(self, true_bg_trace=None, workers=-1, brute_force_finish=None):
+    def fit(self, true_bg_trace=None):
         """Fits the optimal sensor characteristics fit to a true_bg_trace using a brute search range
-
         Parameters
         ----------
         true_bg_trace : float array
             The true_bg_trace (mg/dL) used to fit a johnsonsu distribution
         training_size : int
             Number of sensors used when fitting the optimal distribution of sensor characteristics
-        workers : int
-            Number of cores to use during brute force fit (default to -1, use all, use 1 if debugging this code)
-        brute_force_finish : None or string
-            Default to None, "fmin" will look for a local minimum around grid point(s) at the end of search
         """
 
         if true_bg_trace is None:
@@ -155,9 +158,9 @@ class iCGMSensorGenerator(object):
                 self.verbose,
                 self.use_g6_accuracy_in_loss,
             ),
-            workers=workers,
+            workers=self.workers,
             full_output=True,
-            finish=brute_force_finish,
+            finish=self.brute_force_finish,
         )
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
