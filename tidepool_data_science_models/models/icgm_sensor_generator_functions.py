@@ -1154,150 +1154,150 @@ def calc_icgm_special_controls_loss(icgm_special_controls_table, g6_loss):
     return total_loss, percent_pass
 
 
-def get_search_range(
-    SPECIAL_CONTROLS_CRITERIA=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],
-    SEARCH_SPAN=10,
-    BIAS_CATEGORY="NOT_SPECIFIED",
-    BIAS_MIN=-50,
-    BIAS_MAX=50,
-    BIAS_DRIFT_MIN=0.85,
-    BIAS_DRIFT_MAX=1.15,
-    BIAS_DRIFT_STEP=0.15,
-    BIAS_DRIFT_OSCILLATION_MIN=0,
-    BIAS_DRIFT_OSCILLATION_MAX=3,
-    BIAS_DRIFT_OSCILLATION_STEP=1,
-    NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
-    NOISE_MAX=20,
-    NOISE_STEP=5,
-):
-
-    # # for completley positive bias
-    # if BIAS_CATEGORY in "COMPLETE_POSITIVE_BIAS":
-    #
-    #     perc_points_40_70 = [
-    #         0.0001,
-    #         SPECIAL_CONTROLS_CRITERIA[0],
-    #         SPECIAL_CONTROLS_CRITERIA[6],
-    #         SPECIAL_CONTROLS_CRITERIA[3],
-    #         0.9999,
-    #     ]
-    #     icgm_errors_40_70 = [0, 15, 20, 40, BIAS_MAX]
-    #
-    #     a_b_mu_sigma_bounds = ([-100, EPS, 10, 1], [-10, 10, 100, np.inf])
-    #
-    #     if pd.isnull(SEARCH_SPAN):
-    #         SEARCH_SPAN = 1
-    #
-    # # for completley positive bias
-    # elif BIAS_CATEGORY in "COMPLETE_NEGATIVE_BIAS":
-    #
-    #     perc_points_40_70 = [
-    #         0.0001,
-    #         SPECIAL_CONTROLS_CRITERIA[0],
-    #         SPECIAL_CONTROLS_CRITERIA[6],
-    #         SPECIAL_CONTROLS_CRITERIA[3],
-    #         0.9999,
-    #     ]
-    #     icgm_errors_40_70 = [0, -15, -20, -40, BIAS_MIN]
-    #
-    #     a_b_mu_sigma_bounds = ([10, EPS, -100, 1], [100, 10, -10, np.inf])
-    #
-    #     if pd.isnull(SEARCH_SPAN):
-    #         SEARCH_SPAN = 1
-    #
-    # else:
-    #     A_LB, A_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[0])
-    #     D_LB, D_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[3])
-    #     G_LB, G_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[6])
-    #     perc_points_40_70 = [0.0001, D_LB, G_LB, A_LB, 0.5, A_UB, G_LB, D_UB, 0.9999]
-    #     icgm_errors_40_70 = [BIAS_MIN, -40, -20, -15, 0, 15, 20, 40, BIAS_MAX]
-    #
-    #     # for no bias
-    #     if BIAS_CATEGORY in "NO_BIAS":
-    #
-    #         a_b_mu_sigma_bounds = ([0, EPS, 0, 1], [EPS, 10, EPS, np.inf])
-    #
-    #         if pd.isnull(SEARCH_SPAN):
-    #             SEARCH_SPAN = EPS
-    #
-    #     # if no bias is specified
-    #     else:
-    #         a_b_mu_sigma_bounds = ([-20, EPS, -20, 5], [20, 100, 20, np.inf])
-    #
-    #         if pd.isnull(SEARCH_SPAN):
-    #             SEARCH_SPAN = 5
-    #
-    # # get distribution settings that are in the ballpark
-    # (a_init, b_init, mu_init, sigma_init), pcov = curve_fit(
-    #     find_johnson_params, perc_points_40_70, icgm_errors_40_70, bounds=a_b_mu_sigma_bounds
-    # )
-
-    # set the search grid ranges
-    # TODO: change these from hard-coded to inputs NOTE: once that is done change input_df
-    # TODO: fixing a to 0 and b to 1, is ~ equivalent to chaninng johnsonsu to normal distribution
-    rranges = (
-        slice(0, 1, 1),  # setting a to 0
-        slice(1, 2, 1),  # setting b to 1
-        slice(-7, 8, 1),  # mu of johnsonsu
-        slice(1, 8, 1),  # sigma of johnsonsu
-        slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
-        slice(0.9, 1, 1),  # setting bias drift min to 0.9
-        slice(1.1, 1.3, 1),  # setting bias drift min to 1.1
-        slice(1, 2, 1),  # setting bias drift oscillations to 1
-    )
-
-    #     slice(a_init - SEARCH_SPAN, a_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
-    #     slice(max([b_init - SEARCH_SPAN, EPS]), b_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
-    #     slice(mu_init - SEARCH_SPAN, mu_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
-    #     slice(max([sigma_init - (SEARCH_SPAN * 4), 4]), sigma_init + (SEARCH_SPAN * 2 * 4), (SEARCH_SPAN * 4)),
-    #     slice(NOISE_MIN, NOISE_MAX, NOISE_STEP),  # noise slice
-    #     slice(BIAS_DRIFT_MIN, 1, BIAS_DRIFT_STEP),  # bias_drift_range_min
-    #     slice(1, BIAS_DRIFT_MAX, BIAS_DRIFT_STEP),  # bias_drift_range_max
-    #     slice(
-    #         BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
-    #     ),  # bias_drift_oscillations
-    # )
-
-    input_names = [
-        "SPECIAL_CONTROLS_CRITERIA",
-        "SEARCH_SPAN",
-        "BIAS_CATEGORY",
-        "BIAS_MIN",
-        "BIAS_MAX",
-        "BIAS_DRIFT_MIN",
-        "BIAS_DRIFT_MAX",
-        "BIAS_DRIFT_STEP",
-        "BIAS_DRIFT_OSCILLATION_MIN",
-        "BIAS_DRIFT_OSCILLATION_MAX",
-        "BIAS_DRIFT_OSCILLATION_STEP",
-        "NOISE_MIN",
-        "NOISE_MAX",
-        "NOISE_STEP",
-    ]
-
-    # TODO:
-    input_df = pd.DataFrame(
-        [
-            str(SPECIAL_CONTROLS_CRITERIA),
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-            np.nan,
-        ],
-        columns=["icgmSensorResults"],
-        index=input_names,
-    )
-
-    return rranges, input_df
+# def get_search_range(
+#     SPECIAL_CONTROLS_CRITERIA=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],
+#     SEARCH_SPAN=10,
+#     BIAS_CATEGORY="NOT_SPECIFIED",
+#     BIAS_MIN=-50,
+#     BIAS_MAX=50,
+#     BIAS_DRIFT_MIN=0.85,
+#     BIAS_DRIFT_MAX=1.15,
+#     BIAS_DRIFT_STEP=0.15,
+#     BIAS_DRIFT_OSCILLATION_MIN=0,
+#     BIAS_DRIFT_OSCILLATION_MAX=3,
+#     BIAS_DRIFT_OSCILLATION_STEP=1,
+#     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
+#     NOISE_MAX=20,
+#     NOISE_STEP=5,
+# ):
+#
+#     # # for completley positive bias
+#     # if BIAS_CATEGORY in "COMPLETE_POSITIVE_BIAS":
+#     #
+#     #     perc_points_40_70 = [
+#     #         0.0001,
+#     #         SPECIAL_CONTROLS_CRITERIA[0],
+#     #         SPECIAL_CONTROLS_CRITERIA[6],
+#     #         SPECIAL_CONTROLS_CRITERIA[3],
+#     #         0.9999,
+#     #     ]
+#     #     icgm_errors_40_70 = [0, 15, 20, 40, BIAS_MAX]
+#     #
+#     #     a_b_mu_sigma_bounds = ([-100, EPS, 10, 1], [-10, 10, 100, np.inf])
+#     #
+#     #     if pd.isnull(SEARCH_SPAN):
+#     #         SEARCH_SPAN = 1
+#     #
+#     # # for completley positive bias
+#     # elif BIAS_CATEGORY in "COMPLETE_NEGATIVE_BIAS":
+#     #
+#     #     perc_points_40_70 = [
+#     #         0.0001,
+#     #         SPECIAL_CONTROLS_CRITERIA[0],
+#     #         SPECIAL_CONTROLS_CRITERIA[6],
+#     #         SPECIAL_CONTROLS_CRITERIA[3],
+#     #         0.9999,
+#     #     ]
+#     #     icgm_errors_40_70 = [0, -15, -20, -40, BIAS_MIN]
+#     #
+#     #     a_b_mu_sigma_bounds = ([10, EPS, -100, 1], [100, 10, -10, np.inf])
+#     #
+#     #     if pd.isnull(SEARCH_SPAN):
+#     #         SEARCH_SPAN = 1
+#     #
+#     # else:
+#     #     A_LB, A_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[0])
+#     #     D_LB, D_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[3])
+#     #     G_LB, G_UB = get_95percent_bounds(SPECIAL_CONTROLS_CRITERIA[6])
+#     #     perc_points_40_70 = [0.0001, D_LB, G_LB, A_LB, 0.5, A_UB, G_LB, D_UB, 0.9999]
+#     #     icgm_errors_40_70 = [BIAS_MIN, -40, -20, -15, 0, 15, 20, 40, BIAS_MAX]
+#     #
+#     #     # for no bias
+#     #     if BIAS_CATEGORY in "NO_BIAS":
+#     #
+#     #         a_b_mu_sigma_bounds = ([0, EPS, 0, 1], [EPS, 10, EPS, np.inf])
+#     #
+#     #         if pd.isnull(SEARCH_SPAN):
+#     #             SEARCH_SPAN = EPS
+#     #
+#     #     # if no bias is specified
+#     #     else:
+#     #         a_b_mu_sigma_bounds = ([-20, EPS, -20, 5], [20, 100, 20, np.inf])
+#     #
+#     #         if pd.isnull(SEARCH_SPAN):
+#     #             SEARCH_SPAN = 5
+#     #
+#     # # get distribution settings that are in the ballpark
+#     # (a_init, b_init, mu_init, sigma_init), pcov = curve_fit(
+#     #     find_johnson_params, perc_points_40_70, icgm_errors_40_70, bounds=a_b_mu_sigma_bounds
+#     # )
+#
+#     # set the search grid ranges
+#     # TODO: change these from hard-coded to inputs NOTE: once that is done change input_df
+#     # TODO: fixing a to 0 and b to 1, is ~ equivalent to chaninng johnsonsu to normal distribution
+#     rranges = (
+#         slice(0, 1, 1),  # setting a to 0
+#         slice(1, 2, 1),  # setting b to 1
+#         slice(-7, 8, 1),  # mu of johnsonsu
+#         slice(1, 8, 1),  # sigma of johnsonsu
+#         slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+#         slice(0.9, 1, 1),  # setting bias drift min to 0.9
+#         slice(1.1, 1.3, 1),  # setting bias drift min to 1.1
+#         slice(1, 2, 1),  # setting bias drift oscillations to 1
+#     )
+#
+#     #     slice(a_init - SEARCH_SPAN, a_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
+#     #     slice(max([b_init - SEARCH_SPAN, EPS]), b_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
+#     #     slice(mu_init - SEARCH_SPAN, mu_init + (SEARCH_SPAN * 2), SEARCH_SPAN),
+#     #     slice(max([sigma_init - (SEARCH_SPAN * 4), 4]), sigma_init + (SEARCH_SPAN * 2 * 4), (SEARCH_SPAN * 4)),
+#     #     slice(NOISE_MIN, NOISE_MAX, NOISE_STEP),  # noise slice
+#     #     slice(BIAS_DRIFT_MIN, 1, BIAS_DRIFT_STEP),  # bias_drift_range_min
+#     #     slice(1, BIAS_DRIFT_MAX, BIAS_DRIFT_STEP),  # bias_drift_range_max
+#     #     slice(
+#     #         BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
+#     #     ),  # bias_drift_oscillations
+#     # )
+#
+#     input_names = [
+#         "SPECIAL_CONTROLS_CRITERIA",
+#         "SEARCH_SPAN",
+#         "BIAS_CATEGORY",
+#         "BIAS_MIN",
+#         "BIAS_MAX",
+#         "BIAS_DRIFT_MIN",
+#         "BIAS_DRIFT_MAX",
+#         "BIAS_DRIFT_STEP",
+#         "BIAS_DRIFT_OSCILLATION_MIN",
+#         "BIAS_DRIFT_OSCILLATION_MAX",
+#         "BIAS_DRIFT_OSCILLATION_STEP",
+#         "NOISE_MIN",
+#         "NOISE_MAX",
+#         "NOISE_STEP",
+#     ]
+#
+#     # TODO:
+#     input_df = pd.DataFrame(
+#         [
+#             str(SPECIAL_CONTROLS_CRITERIA),
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#             np.nan,
+#         ],
+#         columns=["icgmSensorResults"],
+#         index=input_names,
+#     )
+#
+#     return rranges, input_df
 
 
 def str2bool(string_):
