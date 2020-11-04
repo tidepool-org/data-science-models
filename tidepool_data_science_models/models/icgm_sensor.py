@@ -220,12 +220,13 @@ class iCGMSensor(Sensor):
         properties_to_save["drift_multiplier_start"] = properties_to_save["drift_multiplier"][0]
         properties_to_save["drift_multiplier_end"] = properties_to_save["drift_multiplier"][-1]
         properties_to_save["drift_multiplier"] = None
-        properties_to_save["phi_drift"] = properties_to_save["phi_drift"][0]
-        properties_to_save["bias_factor"] = properties_to_save["bias_factor"][0]
-        properties_to_save["initial_bias"] = properties_to_save["initial_bias"][0]
+        properties_to_save["phi_drift"] = properties_to_save["phi_drift"]
+        properties_to_save["bias_factor"] = properties_to_save["bias_factor"]
+        properties_to_save["initial_bias"] = properties_to_save["initial_bias"]
         properties_to_save["noise_max"] = np.max(properties_to_save["noise"])
         properties_to_save["noise"] = None
-        properties_to_save["noise_per_sensor"] = properties_to_save["noise_per_sensor"][0]
+        properties_to_save["noise_per_sensor"] = properties_to_save["noise_per_sensor"]
+        properties_to_save["number_of_spurious_events_per_10_days"] = properties_to_save["number_of_spurious_events_per_10_days"]
 
         return self.sensor_properties
 
