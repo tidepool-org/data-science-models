@@ -7,7 +7,12 @@ from pytest import approx
 from scipy.stats import johnsonsu
 from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 from tidepool_data_science_models.models.icgm_sensor_generator import iCGMSensorGenerator
-from tidepool_data_science_models.models.icgm_sensor_generator_functions import create_dataset
+from tidepool_data_science_models.models.icgm_sensor_generator_functions import (
+    create_dataset,
+    generate_icgm_sensors,
+    calc_icgm_sc_table,
+    preprocess_data,
+)
 
 
 def test_that_fit_icgm_sensor_has_correct_stats():
@@ -34,6 +39,16 @@ def test_that_fit_icgm_sensor_has_correct_stats():
         bias_drift_type="random",
         random_seed=0,
         verbose=False,
+        brute_force_search_range=(
+            slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
+            slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
+            slice(-7, 8, 1),  # mu of johnsonsu
+            slice(1, 8, 1),  # sigma of johnsonsu
+            slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+            slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
+            slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
+            slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
+        ),
     )
 
     sensor_generator.fit(df["value"].values)
@@ -129,7 +144,9 @@ def test_that_results_are_same_before_after_sensor_property_refactor():
     )
 
     # test that the same icgm traces are generated
-    assert np.array_equal(np.round(new_benchmark_sensor_generator_obj.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces))
+    assert np.array_equal(
+        np.round(new_benchmark_sensor_generator_obj.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces)
+    )
 
 
 def test_that_results_are_repeatable_before_after_sensor_property_refactor():
@@ -151,6 +168,16 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
         bias_drift_type="random",
         random_seed=random_seed,
         verbose=False,
+        brute_force_search_range=(
+            slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
+            slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
+            slice(-7, 8, 1),  # mu of johnsonsu
+            slice(1, 8, 1),  # sigma of johnsonsu
+            slice(0, 11, 1),  # max allowable sensor noise in batch of sensors
+            slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
+            slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
+            slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
+        ),
     )
 
     # refit to the same benchmark true bg dataset
@@ -169,7 +196,9 @@ def test_that_results_are_repeatable_before_after_sensor_property_refactor():
     )
 
     # test that the same icgm traces are generated
-    assert np.array_equal(np.round(new_sensor_generator.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces))
+    assert np.array_equal(
+        np.round(new_sensor_generator.icgm_traces), np.round(benchmark_sensor_generator_obj.icgm_traces)
+    )
 
     # this assertion is now changed given that individual_sensor_properties have been changed from df to dict,
     # BUT, the icgm traces would only be exactly equal if all of the sensor properties were identical,
@@ -368,3 +397,111 @@ def test_icgm_sensor_generation_mimics_icgm_sensitivity_analysis_behavior():
                     compare_sensor_b_properties = all_virtual_patients[sim_id_name_b_compare]["patient"]["sensor"]
                     for key in sensor_b_properties.keys():
                         assert np.array_equal(sensor_b_properties[key], compare_sensor_b_properties[key])
+
+
+def test_number_of_spurious_events_is_correct():
+
+    test_sensor_properties = {
+        "bias_type": "percentage_of_value",
+        "a": 0,
+        "b": 1,
+        "mu": 0,
+        "sigma": 1,
+        "bias_drift_type": "none",
+        "noise_coefficient": 0,
+        "delay": 10,
+        "max_number_of_spurious_events_per_sensor_life": 20,
+    }
+
+    sensor_datetime = datetime.datetime(2020, 1, 1)
+    icgm_sensor = iCGMSensor(current_datetime=sensor_datetime, sensor_properties=test_sensor_properties)
+
+    # make sure that the number of spurious events is less than or equal to the max allowable
+    assert (
+        icgm_sensor.sensor_properties["spurious"].sum()
+        <= test_sensor_properties["max_number_of_spurious_events_per_sensor_life"]
+    )
+
+    # generate a flat line and count the number of spurious events
+    true_df, _ = create_dataset(kind="flat", N=288 * 10, time_interval=5, flat_value=140, random_seed=0,)
+    true_bg_trace = true_df["value"].values
+    for expected_time_index, true_bg_val in enumerate(true_bg_trace):
+        icgm_sensor.update(sensor_datetime, patient_true_bg=true_bg_val)
+        sensor_datetime += datetime.timedelta(minutes=5)
+
+    icgm_true_diff = icgm_sensor.sensor_bg_history[2:] - true_bg_trace[2:]
+
+    n_spurious_sensed = np.sum(np.log(abs(np.mean(icgm_true_diff) - icgm_true_diff)) > 1)
+    assert n_spurious_sensed == icgm_sensor.sensor_properties["spurious_events_per_sensor"]
+
+    # import matplotlib.pyplot as plt
+    # plt.plot(true_bg_trace)
+    # plt.plot(icgm_sensor.sensor_bg_history)
+    # plt.show()
+
+
+def test_that_spurious_event_values_are_always_within_icgm_special_controls():
+    # %% test that the value of the spurious events is within icgm special controls
+    true_df, _ = create_dataset(kind="linear", N=288 * 10, min_value=40, max_value=400, time_interval=5, random_seed=0,)
+    true_bg_trace = true_df["value"].values
+
+    icgm_trace, ind_sensor_properties = generate_icgm_sensors(
+        true_bg_trace,
+        [0, 1, 0, 1],  # [a, b, mu, sigma]
+        n_sensors=1,  # (suggest 100 for speed, 1000 for thoroughness)
+        bias_type="percentage_of_value",  # (constant_offset, percentage_of_value)
+        bias_drift_type="none",  # options (none, linear, random)
+        delay=10,  # (suggest 0, 5, 10, 15)
+        max_number_of_spurious_events_per_sensor_life=1000,
+        random_seed=0,
+    )
+
+    """
+    (H) When iCGM values are less than 70 mg/dL, no corresponding blood glucose value shall read above 180 mg/dL.
+    (I) When iCGM values are greater than 180 mg/dL, no corresponding blood glucose value shall read less than 70 mg/dL.
+    """
+
+    icgm_special_controls_table = calc_icgm_sc_table(
+        preprocess_data(true_bg_trace, icgm_trace, icgm_range=[40, 400], ysi_range=[0, 900])
+    )
+
+    assert icgm_special_controls_table.loc["H", "icgmSensorResults"] == 100
+    assert icgm_special_controls_table.loc["I", "icgmSensorResults"] == 100
+
+
+def test_that_batch_sensors_fit_icgm_special_controls_with_spurious_events():
+    true_df, _ = create_dataset(
+        kind="sine",
+        N=288 * 10,
+        min_value=40,
+        max_value=400,
+        time_interval=5,
+        flat_value=np.nan,
+        oscillations=5,
+        random_seed=0,
+    )
+
+    true_bg_trace = true_df["value"].values
+
+    batch_training_size = 3
+    sensor_generator = iCGMSensorGenerator(
+        batch_training_size=batch_training_size, max_number_of_spurious_events_per_sensor_life=100,
+    )
+    sensor_generator.fit(true_bg_trace)
+
+    # make sure that the number of spurious events is less than or equal to the max allowable
+    assert sensor_generator.sensor_properties["spurious"].sum() <= np.sum(
+        sensor_generator.sensor_properties["max_number_of_spurious_events_per_sensor_life"]
+    )
+
+    # make sure that the value of the spurious events is within icgm special controls
+    assert sensor_generator.icgm_special_controls_accuracy_table.loc["H", "icgmSensorResults"] == 100
+    assert sensor_generator.icgm_special_controls_accuracy_table.loc["I", "icgmSensorResults"] == 100
+
+    # make sure that each sensor has the right number of spurious events
+    for s in sensor_generator.sensors:
+        assert s.sensor_properties["spurious_events_per_sensor"] == s.sensor_properties["spurious"].sum()
+        assert (
+            s.sensor_properties["spurious"].sum()
+            <= s.sensor_properties["max_number_of_spurious_events_per_sensor_life"]
+        )

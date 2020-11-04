@@ -14,6 +14,7 @@ from scipy.optimize import brute, fmin
 from tidepool_data_science_models.models.icgm_sensor import iCGMSensor
 import tidepool_data_science_models.models.icgm_sensor_generator_functions as sf
 import multiprocessing
+
 multiprocessing.set_start_method("fork")
 
 
@@ -33,6 +34,10 @@ class iCGMSensorGenerator(object):
         verbose=False,
         true_bg_trace=None,
         true_dataset_name="default",
+        brute_force_search_range=tuple(),
+        workers=-1,
+        brute_force_finish=None,
+        max_number_of_spurious_events_per_sensor_life=0
     ):
         """
         Sensor Generator Initialization
@@ -55,6 +60,12 @@ class iCGMSensorGenerator(object):
             The time-series of true bgs the iCGM distribution is fit to
         true_dataset_name : str
             Name of the true bg dataset used to fit
+        brute_force_search_range : tuple
+            A tuple that contains the search space slices for brute force search. Default to narrow search range (for speed)
+        workers : int
+            Number of cores to use during brute force fit (default to -1, use all, use 1 if debugging this code)
+        brute_force_finish : None or string
+            Default to None, "fmin" will look for a local minimum around grid point(s) at the end of search
         """
 
         if sc_thresholds is None:
@@ -77,6 +88,9 @@ class iCGMSensorGenerator(object):
         self.verbose = verbose
         self.true_bg_trace = true_bg_trace
         self.true_dataset_name = true_dataset_name
+        self.workers = workers
+        self.brute_force_finish = brute_force_finish
+        self.max_number_of_spurious_events_per_sensor_life = max_number_of_spurious_events_per_sensor_life
 
         # pick delay based upon data in:
         # Vettoretti et al., 2019, Sensors 2019, 19, 5320
@@ -85,7 +99,22 @@ class iCGMSensorGenerator(object):
         else:
             self.delay = 10
 
-        self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range()
+        if len(brute_force_search_range) == 0:
+            self.johnson_parameter_search_range = (
+                slice(0, 1, 1),  # a of johnsonsu (fixed to 0)
+                slice(1, 2, 1),  # b of johnsonsu (fixed to 1)
+                slice(1, 3, 1),  # mu of johnsonsu
+                slice(1, 3, 1),  # sigma of johnsonsu
+                slice(1, 3, 1),  # max allowable sensor noise in batch of sensors
+                slice(0.9, 1, 1),  # setting bias drift min (fixed to 0.9)
+                slice(1.1, 1.3, 1),  # setting bias drift min (fixed to 1.1)
+                slice(1, 2, 1),  # setting bias drift oscillations (fixed to 1)
+            )
+
+        else:
+            self.johnson_parameter_search_range = brute_force_search_range
+
+        # self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range()
 
         # set the random seed for reproducibility
         np.random.seed(seed=random_seed)
@@ -104,14 +133,12 @@ class iCGMSensorGenerator(object):
 
     def fit(self, true_bg_trace=None):
         """Fits the optimal sensor characteristics fit to a true_bg_trace using a brute search range
-
         Parameters
         ----------
         true_bg_trace : float array
             The true_bg_trace (mg/dL) used to fit a johnsonsu distribution
         training_size : int
             Number of sensors used when fitting the optimal distribution of sensor characteristics
-
         """
 
         if true_bg_trace is None:
@@ -132,10 +159,11 @@ class iCGMSensorGenerator(object):
                 self.random_seed,
                 self.verbose,
                 self.use_g6_accuracy_in_loss,
+                self.max_number_of_spurious_events_per_sensor_life
             ),
-            workers=-1,
+            workers=self.workers,
             full_output=True,
-            finish=None,  # fmin will look for a local minimum around the grid point
+            finish=self.brute_force_finish,
         )
 
         self.batch_sensor_brute_search_results = batch_sensor_brute_search_results
@@ -144,9 +172,7 @@ class iCGMSensorGenerator(object):
         # %% add in check that optimal result passed
         self.generate_sensors(self.batch_training_size, sensor_start_datetime=0)
 
-        temp_df = sf.preprocess_data(
-            true_bg_trace, self.icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900]
-        )
+        temp_df = sf.preprocess_data(true_bg_trace, self.icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
 
         self.icgm_special_controls_accuracy_table = sf.calc_icgm_sc_table(temp_df, "generic")
 
@@ -160,7 +186,6 @@ class iCGMSensorGenerator(object):
             self.icgm_special_controls_accuracy_table, self.g6_loss
         )
 
-
         return
 
     def generate_sensors(self, n_sensors, sensor_start_datetime, sensor_start_time_index=0):
@@ -168,18 +193,21 @@ class iCGMSensorGenerator(object):
         if self.dist_params is None:
             raise Exception("iCGM Sensor Generator has not been fit() to a true_bg_trace distribution.")
 
-        (
-            a,
-            b,
-            mu,
-            sigma,
-            noise_coefficient,
-            bias_drift_range_min,
-            bias_drift_range_max,
-            bias_drift_oscillations,
-        ) = self.dist_params
+        if len(self.dist_params) == 9:
+            self.max_number_of_spurious_events_per_sensor_life = self.dist_params[8]
 
-        bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
+        # (
+        #     a,
+        #     b,
+        #     mu,
+        #     sigma,
+        #     noise_coefficient,
+        #     bias_drift_range_min,
+        #     bias_drift_range_max,
+        #     bias_drift_oscillations,
+        # ) = self.dist_params
+
+        # bias_drift_range = [bias_drift_range_min, bias_drift_range_max]
 
         # STEP 3 apply the results
         # Convert to a generate_sensor(global_params) --> Sensor(obj)
@@ -189,11 +217,12 @@ class iCGMSensorGenerator(object):
             n_sensors=n_sensors,
             bias_type=self.bias_type,
             bias_drift_type=self.bias_drift_type,
-            bias_drift_range=bias_drift_range,
-            bias_drift_oscillations=bias_drift_oscillations,
-            noise_coefficient=noise_coefficient,
+            bias_drift_range=self.dist_params[5:7],
+            bias_drift_oscillations=self.dist_params[7],
+            noise_coefficient=self.dist_params[4],
             delay=self.delay,
             random_seed=self.random_seed,
+            max_number_of_spurious_events_per_sensor_life=self.max_number_of_spurious_events_per_sensor_life
         )
 
         sensors = []

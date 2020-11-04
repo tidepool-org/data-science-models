@@ -3,6 +3,7 @@ import sys
 import datetime
 import copy
 from scipy.stats import johnsonsu
+from tidepool_data_science_models.models.icgm_sensor_generator_functions import generate_spurious_bg
 
 
 class SensorExpiredError(Exception):
@@ -92,7 +93,7 @@ class iCGMSensor(Sensor):
             np.random.seed(seed=sensor_properties["random_seed"])
         else:
             # NOTE: not including the possibility of a seed of 0, since that is the default
-            self.sensor_properties["random_seed"] = np.random.randint(1, int(2**32 - 1))
+            self.sensor_properties["random_seed"] = np.random.randint(1, int(2 ** 32 - 1))
 
         # noise
         if "noise" not in sensor_properties_keys:
@@ -101,7 +102,7 @@ class iCGMSensor(Sensor):
                     raise Exception("Missing Noise Sensor Properties, must pass in a noise_per_sensor")
                 else:
                     self.sensor_properties["noise_per_sensor"] = np.random.uniform(
-                        low=sys.float_info.epsilon, high=sensor_properties["noise_coefficient"], size=1
+                        low=sys.float_info.epsilon, high=sensor_properties["noise_coefficient"]
                     )
                     self.sensor_properties["noise"] = np.random.normal(
                         loc=0,
@@ -138,8 +139,7 @@ class iCGMSensor(Sensor):
                     a=self.sensor_properties["a"],
                     b=self.sensor_properties["b"],
                     loc=self.sensor_properties["mu"],
-                    scale=self.sensor_properties["sigma"],
-                    size=1
+                    scale=self.sensor_properties["sigma"]
                 )
 
         if "bias_factor" not in sensor_properties_keys:
@@ -172,7 +172,7 @@ class iCGMSensor(Sensor):
                         if "bias_drift_oscillations" not in sensor_properties_keys:
                             raise Exception("Missing Bias Drift Sensor Properties, bias_drift_oscillations")
                         if "phi_drift" not in sensor_properties_keys:
-                            self.sensor_properties["phi_drift"] = np.random.uniform(low=-np.pi, high=np.pi, size=1)
+                            self.sensor_properties["phi_drift"] = np.random.uniform(low=-np.pi, high=np.pi)
 
                         t = np.linspace(
                             0,
@@ -189,6 +189,24 @@ class iCGMSensor(Sensor):
                                 self.sensor_properties["bias_drift_range_end"],
                             ),
                         )
+
+        # NOTE: specifying number of spurious events is not required for sensor generator to work, so not adding in an exception
+        if "max_number_of_spurious_events_per_sensor_life" in sensor_properties_keys:
+            if self.sensor_properties["max_number_of_spurious_events_per_sensor_life"] > 0:
+                if "spurious" not in sensor_properties_keys:
+                    if "spurious_events_per_sensor" not in sensor_properties_keys:
+                        self.sensor_properties["spurious_events_per_sensor"] = np.random.randint(
+                            low=0,
+                            high=self.sensor_properties["max_number_of_spurious_events_per_sensor_life"] + 1
+                        )
+                    spurious = np.zeros(self.num_readings_sensor_life)
+                    spurious_index = np.random.randint(
+                        low=0,
+                        high=self.num_readings_sensor_life,
+                        size=self.sensor_properties["spurious_events_per_sensor"]
+                    )
+                    spurious[spurious_index] = 1
+                    self.sensor_properties["spurious"] = spurious
 
     def get_state(self):
 
@@ -319,7 +337,11 @@ class iCGMSensor(Sensor):
         noise = self.sensor_properties["noise"][self.time_index]
         icgm_value = (delayed_true_bg * self.sensor_properties["bias_factor"] * drift_multiplier) + noise
 
-        return icgm_value[0]  # CAS: TMP fix
+        if "spurious" in self.sensor_properties:
+            if self.sensor_properties["spurious"][self.time_index] == 1:
+                icgm_value = generate_spurious_bg(true_bg_value)
+
+        return icgm_value
 
     def get_bg_trace(self, true_bg_trace):
         """
