@@ -152,12 +152,17 @@ experiment_results = pd.DataFrame(
     ]
 )
 
-batch_size = 324
+
 n_smoothing_points = 3
 dataset_range = range(0, 10)
-subset_size = 10
-n_points_in_subset = 77
-n_bootstrap_samples = 500
+
+# batch_size = 324
+# n_points_in_subset = 77
+# n_bootstrap_samples = 500
+batch_size = 100
+subset_size = 1
+n_points_in_subset = None
+n_bootstrap_samples = 5000
 datetime_now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
 
 file_name = "compare_bootstrap_with_binomial-n_sensors_{}-n_ysi_{}-n_bootstrap_samples_{}-{}.csv".format(
@@ -175,10 +180,12 @@ for dataset_id in dataset_range:  # range(0, 10):
     )
 
     for subset in range(subset_size):
-
-        start_index = np.random.randint(len(tbddp_bg_chain_df) - n_points_in_subset)
-        end_index = start_index + n_points_in_subset
-        bg_df = tbddp_bg_chain_df[start_index:end_index].copy()
+        if n_points_in_subset is None:
+            bg_df = tbddp_bg_chain_df
+        else:
+            start_index = np.random.randint(len(tbddp_bg_chain_df) - n_points_in_subset)
+            end_index = start_index + n_points_in_subset
+            bg_df = tbddp_bg_chain_df[start_index:end_index].copy()
 
         true_bg_array = bg_df["bg"].rolling(n_smoothing_points, center=True).mean().dropna().values
         bg_rates = (true_bg_array[1:] - true_bg_array[:-1]) / 5
