@@ -92,7 +92,7 @@ class iCGMSensorGenerator(object):
             self.delay = 10
 
         self.johnson_parameter_search_range, self.search_range_inputs = sf.get_search_range(
-            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX=max_number_of_spurious_events_per_10_days
+            NUMBER_OF_SPURIOUS_VALUES_IN_10_DAYS_MAX=max_number_of_spurious_events_per_10_days,
         )
 
         # set the random seed for reproducibility
