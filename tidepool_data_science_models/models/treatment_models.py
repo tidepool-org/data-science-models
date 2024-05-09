@@ -184,12 +184,13 @@ class Type2InsulinModel(TreatmentModel):
         ----------
         kwargs: dict
             Arguments specific to the model.
-            Requires insulin sensitivity factor (isf) and and carb insulin ratio (cir)
+            Requires insulin sensitivity factor (isf), glucose sensitivity factor (gsf),
+            a basal blood glucose value (bbg), and an insulin production rate (ipr).
         """
         super().__init__("T2Insulin")
         self._isf = kwargs["isf"]
   
-        # Defaults are averaged from the Hovorka paper
+        # Defaults to a Type 1 model if gsf and ipr are not specified
         self._gsf = kwargs.get("gsf", 0)
         self._bbg = kwargs.get("bbg", 100)
         self._ipr = kwargs.get("ipr", 0)
