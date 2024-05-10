@@ -11,12 +11,14 @@ Created on Mon Nov 18 11:03:31 2019
 
 # %% REQUIRED LIBRARIES
 import sys
+import warnings
 import pandas as pd
 import numpy as np
 from math import sqrt
 from scipy.stats import johnsonsu
 from scipy.optimize import curve_fit
 import datetime
+
 # from pyloopkit.dose import DoseType
 
 # %% FUNCTIONS, CLASSES, AND CONSTANTS
@@ -105,6 +107,9 @@ def lower_onesided_95p_CB_binomial(number_success, total_trials):
     else:
         LB_95 = np.nan
 
+    if LB_95 < 0:
+        LB_95 = np.nan
+
     return LB_95
 
 
@@ -124,6 +129,7 @@ def get_95percent_bounds(percent_values_within):
 
     return lower_bound, upper_bound
 
+
 def generate_spurious_bg(true_bg_value):
     if true_bg_value < 70:
         low_options = np.arange(40, true_bg_value * 0.6)
@@ -132,11 +138,12 @@ def generate_spurious_bg(true_bg_value):
         low_options = np.arange(71, true_bg_value * 0.6)
         high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
     else:
-        #todo add 40% difference
+        # todo add 40% difference
         low_options = np.arange(40, true_bg_value * 0.6)
         high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
 
-    return(np.random.choice(np.concatenate([low_options, high_options]), 1).item())
+    return np.random.choice(np.concatenate([low_options, high_options]), 1).item()
+
 
 def generate_icgm_sensors(
     true_bg_trace,
@@ -221,10 +228,16 @@ def generate_icgm_sensors(
         # Gillespie algorithm
         # intensity matrix is analogous to Markov transition matrix
         intensity_mat = np.array(
-            [[1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
-             [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
-             [(1 - p_spurious_missing) / avg_spurious_steps, p_spurious_missing / avg_spurious_steps,
-              1 / avg_spurious_steps]])
+            [
+                [1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
+                [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
+                [
+                    (1 - p_spurious_missing) / avg_spurious_steps,
+                    p_spurious_missing / avg_spurious_steps,
+                    1 / avg_spurious_steps,
+                ],
+            ]
+        )
 
         state_options = np.arange(intensity_mat.shape[0])
         state = np.zeros(shape=iCGM.shape, dtype=np.int)
@@ -241,19 +254,23 @@ def generate_icgm_sensors(
                 # Fill in time until jump with current state
                 state[i, t_current:t_current + t_jump] = current_state
 
+
                 # Sample next state (after current state)
                 next_state_options = np.delete(state_options, current_state)
-                next_state_weights = intensity_mat[current_state, next_state_options] / intensity_mat[
-                    current_state, current_state]
 
-                # Make the state and time jump
+                next_state_weights = (
+                    intensity_mat[current_state, next_state_options] / intensity_mat[current_state, current_state]
+                )
+
                 current_state = np.random.choice(a=next_state_options, size=1, p=next_state_weights).item()
                 t_current = t_current + t_jump + 1
 
             i += 1
 
         # Create spurious values
-        delayed_iCGM[state == 1] = np.array([generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]])
+        delayed_iCGM[state == 1] = np.array(
+            [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]]
+        )
 
         # Create missing values
         delayed_iCGM[state == 2] = np.nan
@@ -410,10 +427,13 @@ def johnsonsu_icgm_sensor(
     use_g6_criteria=False,
 ):
 
-    # skip distributions that are unrealistic
+    # ignore divided by zero error
+    warnings.filterwarnings("ignore", message="overflow encountered in sinh")
     dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
     dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    warnings.filterwarnings("default")
 
+    # skip distributions that are unrealistic
     dist_range = np.nan
     if not np.isinf(dist_min):
         if not np.isinf(dist_max):
@@ -446,7 +466,7 @@ def johnsonsu_icgm_sensor(
             avg_spurious_time=dist_params[8],
             p_spurious_missing=p_spurious_missing,
             p_normal_missing=dist_params[9],
-            random_seed=random_seed
+            random_seed=random_seed,
         )
 
         df = preprocess_data(true_bg_trace, icgm_traces, icgm_range=[40, 400], ysi_range=[0, 900])
@@ -517,6 +537,9 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
     bg_df["absErrorPercent"] = abs_percent_error
 
     """ precalculate bg value bins """
+    # ignore warnings associated with nans
+    warnings.filterwarnings("ignore", message="invalid value encountered")
+
     # measurement range
     # subtract/add 0.5 to account for rounding (e.g., 39.5 = 40)
     bg_df["withinMeasRange"] = (icgm_values >= icgm_min) & (icgm_values < icgm_max)
@@ -614,6 +637,9 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
 
     # ysi rate bins
     bg_df["ysiRateBins"] = define_bins(ysi_rates, bin_values, bin_names)
+
+    # turn warnings back on
+    warnings.filterwarnings("default")
 
     """ calculate time bins """
     # calculate the day of the sensor
@@ -1380,7 +1406,7 @@ def get_search_range(
             AST_STEP,
             PSM_MIN,
             PSM_MAX,
-            PSM_STEP
+            PSM_STEP,
         ],
         columns=["icgmSensorResults"],
         index=input_names,
