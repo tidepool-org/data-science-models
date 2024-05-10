@@ -11,12 +11,14 @@ Created on Mon Nov 18 11:03:31 2019
 
 # %% REQUIRED LIBRARIES
 import sys
+import warnings
 import pandas as pd
 import numpy as np
 from math import sqrt
 from scipy.stats import johnsonsu
 from scipy.optimize import curve_fit
 import datetime
+
 # from pyloopkit.dose import DoseType
 
 # %% FUNCTIONS, CLASSES, AND CONSTANTS
@@ -105,6 +107,9 @@ def lower_onesided_95p_CB_binomial(number_success, total_trials):
     else:
         LB_95 = np.nan
 
+    if LB_95 < 0:
+        LB_95 = np.nan
+
     return LB_95
 
 
@@ -125,6 +130,21 @@ def get_95percent_bounds(percent_values_within):
     return lower_bound, upper_bound
 
 
+def generate_spurious_bg(true_bg_value):
+    if true_bg_value < 70:
+        low_options = np.arange(40, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 180)
+    elif true_bg_value > 180:
+        low_options = np.arange(71, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
+    else:
+        # todo add 40% difference
+        low_options = np.arange(40, true_bg_value * 0.6)
+        high_options = np.arange(np.ceil(true_bg_value * 1.4), 401)
+
+    return np.random.choice(np.concatenate([low_options, high_options]), 1).item()
+
+
 def generate_icgm_sensors(
     true_bg_trace,
     dist_params,  # [a, b, mu, sigma]
@@ -135,6 +155,12 @@ def generate_icgm_sensors(
     bias_drift_oscillations=0,  # opt for random drift (max of 2)
     noise_coefficient=0,  # (0 ~ 60dB, 5 ~ 36 dB, 10, 30 dB)
     delay=5,  # (suggest 0, 5, 10, 15)
+    spurious_missing=True,
+    avg_normal_time=24 * 60,
+    avg_missing_time=2 * 60,
+    avg_spurious_time=10,
+    p_spurious_missing=0.8,
+    p_normal_missing=0.95,
     random_seed=0,
 ):
     # set a random seed for reproducibility
@@ -193,6 +219,61 @@ def generate_icgm_sensors(
     delayed_iCGM = np.insert(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
+    if spurious_missing:
+        avg_normal_steps = avg_normal_time / 5
+        avg_missing_steps = avg_missing_time / 5
+        avg_spurious_steps = avg_spurious_time / 5
+
+        # States: 0: Normal, 1: Missing, 2: Spurious
+        # Gillespie algorithm
+        # intensity matrix is analogous to Markov transition matrix
+        intensity_mat = np.array(
+            [
+                [1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
+                [1 / avg_missing_steps, 1 / avg_missing_steps, 0],
+                [
+                    (1 - p_spurious_missing) / avg_spurious_steps,
+                    p_spurious_missing / avg_spurious_steps,
+                    1 / avg_spurious_steps,
+                ],
+            ]
+        )
+
+        state_options = np.arange(intensity_mat.shape[0])
+        state = np.zeros(shape=iCGM.shape, dtype=np.int)
+
+        for i in range(0, n_sensors):
+            t_current = 0
+            # Each sensor starts in normal state
+            current_state = 0
+
+            while t_current < iCGM.shape[1]:
+                # Generate time spent in current state from exponential distribution with parameter from the diagonal
+                # of intensity matrix. This is the time of the next "jump."
+                t_jump = np.random.exponential(1 / intensity_mat[current_state, current_state], 1).astype(int).item()
+                # Fill in time until jump with current state
+                state[i, t_current:t_current + t_jump] = current_state
+
+
+                # Sample next state (after current state)
+                next_state_options = np.delete(state_options, current_state)
+
+                next_state_weights = (
+                    intensity_mat[current_state, next_state_options] / intensity_mat[current_state, current_state]
+                )
+
+                current_state = np.random.choice(a=next_state_options, size=1, p=next_state_weights).item()
+                t_current = t_current + t_jump + 1
+
+            i += 1
+
+        # Create spurious values
+        delayed_iCGM[state == 1] = np.array(
+            [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]]
+        )
+
+        # Create missing values
+        delayed_iCGM[state == 2] = np.nan
 
     # capture the individual sensor characertistics for future simulation
     ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
@@ -210,6 +291,12 @@ def generate_icgm_sensors(
     ind_sensor_properties["bias_norm_factor"] = norm_factor
     ind_sensor_properties["noise_coefficient"] = noise_coefficient
     ind_sensor_properties["delay"] = delay
+    if spurious_missing:
+        ind_sensor_properties["avg_normal_time"] = avg_normal_time
+        ind_sensor_properties["avg_missing_time"] = avg_missing_time
+        ind_sensor_properties["avg_spurious_time"] = avg_spurious_time
+        ind_sensor_properties["p_spurious_missing"] = p_spurious_missing
+        ind_sensor_properties["p_normal_missing"] = p_normal_missing
     ind_sensor_properties["random_seed"] = random_seed
 
     return delayed_iCGM, ind_sensor_properties
@@ -324,7 +411,11 @@ def upper_onesided_95p_CB_norm_dist(value):
 
 
 def johnsonsu_icgm_sensor(
-    dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations]
+    dist_params,  # [a, b , mu, sigma, noise_coefficient, bias_drift_range_min, bias_drift_range_max, bias_drift_oscillations, avg_spurious_time, p_normal_missing]
+    spurious_missing,
+    avg_normal_time,
+    avg_missing_time,
+    p_spurious_missing,
     true_bg_trace,
     icgm_special_controls=[0.85, 0.70, 0.80, 0.98, 0.99, 0.99, 0.87],
     n_sensors=100,
@@ -336,10 +427,13 @@ def johnsonsu_icgm_sensor(
     use_g6_criteria=False,
 ):
 
-    # skip distributions that are unrealistic
+    # ignore divided by zero error
+    warnings.filterwarnings("ignore", message="overflow encountered in sinh")
     dist_min = johnsonsu.ppf(0.0001, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
     dist_max = johnsonsu.ppf(0.9999, a=dist_params[0], b=dist_params[1], loc=dist_params[2], scale=dist_params[3])
+    warnings.filterwarnings("default")
 
+    # skip distributions that are unrealistic
     dist_range = np.nan
     if not np.isinf(dist_min):
         if not np.isinf(dist_max):
@@ -366,6 +460,12 @@ def johnsonsu_icgm_sensor(
             bias_drift_oscillations=dist_params[7],
             noise_coefficient=dist_params[4],
             delay=delay,
+            spurious_missing=spurious_missing,
+            avg_normal_time=avg_normal_time,
+            avg_missing_time=avg_missing_time,
+            avg_spurious_time=dist_params[8],
+            p_spurious_missing=p_spurious_missing,
+            p_normal_missing=dist_params[9],
             random_seed=random_seed,
         )
 
@@ -437,6 +537,9 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
     bg_df["absErrorPercent"] = abs_percent_error
 
     """ precalculate bg value bins """
+    # ignore warnings associated with nans
+    warnings.filterwarnings("ignore", message="invalid value encountered")
+
     # measurement range
     # subtract/add 0.5 to account for rounding (e.g., 39.5 = 40)
     bg_df["withinMeasRange"] = (icgm_values >= icgm_min) & (icgm_values < icgm_max)
@@ -534,6 +637,9 @@ def preprocess_data(true_array, icgm_matrix, icgm_range=[40, 400], ysi_range=[0,
 
     # ysi rate bins
     bg_df["ysiRateBins"] = define_bins(ysi_rates, bin_values, bin_names)
+
+    # turn warnings back on
+    warnings.filterwarnings("default")
 
     """ calculate time bins """
     # calculate the day of the sensor
@@ -1169,6 +1275,13 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
+    AST_MIN=5, # Average Spurious Time (AST)
+    AST_MAX=30,
+    AST_STEP=5,
+    PSM_MIN=0, # Probability of transitioning from Spurious to Missing (1 - P of trans from Spurious to Normal)
+    PSM_MAX=0.75,
+    PSM_STEP=0.25
+
 ):
 
     # for completley positive bias
@@ -1244,6 +1357,9 @@ def get_search_range(
         slice(
             BIAS_DRIFT_OSCILLATION_MIN, BIAS_DRIFT_OSCILLATION_MAX, BIAS_DRIFT_OSCILLATION_STEP
         ),  # bias_drift_oscillations
+        slice(AST_MIN, AST_MAX, AST_STEP), # avg_spurious_time,
+        slice(PSM_MIN, PSM_MAX, PSM_STEP), # p_spurious_missing
+
     )
 
     input_names = [
@@ -1261,6 +1377,12 @@ def get_search_range(
         "NOISE_MIN",
         "NOISE_MAX",
         "NOISE_STEP",
+        "AST_MIN",
+        "AST_MAX",
+        "AST_STEP",
+        "PSM_MIN",
+        "PSM_MAX",
+        "PSM_STEP",
     ]
 
     input_df = pd.DataFrame(
@@ -1279,6 +1401,12 @@ def get_search_range(
             NOISE_MIN,
             NOISE_MAX,
             NOISE_STEP,
+            AST_MIN,
+            AST_MAX,
+            AST_STEP,
+            PSM_MIN,
+            PSM_MAX,
+            PSM_STEP,
         ],
         columns=["icgmSensorResults"],
         index=input_names,
