@@ -229,7 +229,6 @@ def test_get_loop_format():
     assert glucose_dates == expected_glucose_dates
     assert glucose_values == expected_glucose_values
 
-test_get_loop_format()
 def test_prefill_calculations():
     """Compare normal sensor data updating to prefill calculation method"""
 
