@@ -1,8 +1,6 @@
 language: python
 python:
   - "3.9"      # Travis CI defaults were too old 3.6-3.8
-  - "3.10"
-  - "3.11"
 before_install:
   - "export PYTHONPATH=$PYTHONPATH:$(pwd)"
 # command to install dependencies

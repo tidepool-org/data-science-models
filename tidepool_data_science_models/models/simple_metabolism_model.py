@@ -20,7 +20,7 @@ class SimpleMetabolismModel(object):
         carb_insulin_ratio,
         glucose_sensitivity_factor=0,
         basal_blood_glucose=100,
-        insulin_production_rate=0.4/60,
+        insulin_production_rate=0,
         insulin_model_name="palerm",
         carb_model_name="cescon",
         type2_insulin_model_name="t2_insulin"
