@@ -189,7 +189,7 @@ def generate_icgm_sensors(
     #     iCGM = ((true_matrix + bias_matrix) * drift_multiplier) + noise
 
     # add delay or lag to the iCGM traces
-    delay_steps = np.int(np.round(delay / 5))
+    delay_steps = int(np.round(delay / 5))
     delayed_iCGM = np.insert(
         values=iCGM[:, 0:1], obj=np.zeros(delay_steps, dtype=int), arr=iCGM[:, :-delay_steps], axis=1
     )
