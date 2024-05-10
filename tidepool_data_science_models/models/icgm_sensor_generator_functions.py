@@ -225,7 +225,8 @@ def generate_icgm_sensors(
         avg_spurious_steps = avg_spurious_time / 5
 
         # States: 0: Normal, 1: Missing, 2: Spurious
-        # Gillespie algorithm (ref)
+        # Gillespie algorithm
+        # intensity matrix is analogous to Markov transition matrix
         intensity_mat = np.array(
             [
                 [1 / avg_normal_steps, p_normal_missing / avg_normal_steps, (1 - p_normal_missing) / avg_normal_steps],
@@ -243,25 +244,35 @@ def generate_icgm_sensors(
 
         for i in range(0, n_sensors):
             t_current = 0
+            # Each sensor starts in normal state
             current_state = 0
 
             while t_current < iCGM.shape[1]:
+                # Generate time spent in current state from exponential distribution with parameter from the diagonal
+                # of intensity matrix. This is the time of the next "jump."
                 t_jump = np.random.exponential(1 / intensity_mat[current_state, current_state], 1).astype(int).item()
-                state[i, t_current : t_current + t_jump] = current_state
+                # Fill in time until jump with current state
+                state[i, t_current:t_current + t_jump] = current_state
 
+
+                # Sample next state (after current state)
                 next_state_options = np.delete(state_options, current_state)
+
                 next_state_weights = (
                     intensity_mat[current_state, next_state_options] / intensity_mat[current_state, current_state]
                 )
+
                 current_state = np.random.choice(a=next_state_options, size=1, p=next_state_weights).item()
                 t_current = t_current + t_jump + 1
 
             i += 1
 
+        # Create spurious values
         delayed_iCGM[state == 1] = np.array(
             [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]]
         )
 
+        # Create missing values
         delayed_iCGM[state == 2] = np.nan
 
     # capture the individual sensor characertistics for future simulation
@@ -1264,10 +1275,10 @@ def get_search_range(
     NOISE_MIN=2.5,  # NOTE: CHANGED TO REQUIRE MINIMUM AMOUNT OF NOISE
     NOISE_MAX=20,
     NOISE_STEP=5,
-    AST_MIN=5,
+    AST_MIN=5, # Average Spurious Time (AST)
     AST_MAX=30,
     AST_STEP=5,
-    PSM_MIN=0,
+    PSM_MIN=0, # Probability of transitioning from Spurious to Missing (1 - P of trans from Spurious to Normal)
     PSM_MAX=0.75,
     PSM_STEP=0.25
 

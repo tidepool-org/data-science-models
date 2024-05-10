@@ -54,9 +54,11 @@ class iCGMSensorGenerator(object):
         spurious_missing : bool
             Whether or not to simulate spurious and missing values
         avg_normal_time : positive float
-            Average time per "normal" sensor behavior event
+            Average time (in minutes) per contiguous "normal" sensor behavior event.
+            After a "normal" event, the sensor will change to a "missing" or "spurious" event.
         avg_missing_time : positive float
-            Average time per "missing" sensor behavior event
+            Average time (in minutes) per "missing" sensor behavior event.
+            After a "missing" event, the sensor will change to a "normal" event.
         p_spurious_missing : float between 0 and 1
             Probability of transitioning from a spurious event to a missing event
             (1 - probability of transitioning from a missing event to a spurious event)
