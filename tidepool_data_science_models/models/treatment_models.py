@@ -298,7 +298,74 @@ class CesconCarbModel(TreatmentModel):
 
         return t_min, bg_delta, bg
 
+class Type2InsulinModel(TreatmentModel):
 
+    def __init__(self, **kwargs):
+        """
+        Parameters
+        ----------
+        kwargs: dict
+            Arguments specific to the model.
+            Requires insulin sensitivity factor (isf), glucose sensitivity factor (gsf),
+            a basal blood glucose value (bbg), and an insulin production rate (ipr).
+        """
+        super().__init__("T2Insulin")
+        self._isf = kwargs["isf"]
+  
+        # Defaults to a Type 1 model if gsf and ipr are not specified
+        self._gsf = kwargs.get("gsf", 0)
+        self._bbg = kwargs.get("bbg", 100)
+        self._ipr = kwargs.get("ipr", 0)
+
+    def run(self, num_hours, blood_glucose, five_min=True):
+        """
+        Run the model for num hours assuming that the carb amount
+        is given at t=0.
+
+        Parameters
+        ----------
+        num_hours: float
+            The amount of time in hours to compute the effect
+
+        carb_amount: float
+            The amount of carbs to use for running the model
+
+        five_min: bool
+            If true, run the model in increments of 5 minutes, otherwise
+            1 minute
+
+        Returns
+        -------
+        (np.array, np.array, np.array)
+            t: The time series in minutes
+            bg_delta: The change in bg for each time in t
+            bg: The bg for each time in t starting at 0
+        """
+    
+        isf = self._isf
+        
+        glucose_sensitivity_factor = self._gsf
+        basal_blood_glucose = self._bbg
+        insulin_production_rate = self._ipr
+        
+        t_min = get_timeseries(num_hours, five_min=five_min)
+        bg_delta = np.zeros_like(t_min, dtype=float) 
+        ei = np.zeros_like(t_min, dtype=float) 
+
+        bg_above_baseline = np.max((blood_glucose - basal_blood_glucose, 0))
+        post_hepatic_insulin = np.max(glucose_sensitivity_factor * bg_above_baseline, 0) + insulin_production_rate * basal_blood_glucose
+
+        if five_min:
+            post_hepatic_insulin *= 5
+        
+        insulin_effect = -1 * isf * post_hepatic_insulin
+
+        bg_delta[1] = insulin_effect
+        ei[1] = post_hepatic_insulin
+
+        return t_min, bg_delta, ei
+
+        
 class LoopInsulinModel(TreatmentModel):
     def __init__(self):
         super().__init__("Loop_vX.X")

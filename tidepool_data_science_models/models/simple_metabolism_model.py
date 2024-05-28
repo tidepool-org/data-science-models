@@ -5,7 +5,8 @@ This file houses everything related to the insulin and carb modeling math.
 import numpy as np
 
 from tidepool_data_science_models.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
-from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel, TreatmentModel
+from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel, Type2InsulinModel
+
 
 
 class SimpleMetabolismModel(object):
@@ -18,8 +19,13 @@ class SimpleMetabolismModel(object):
         self,
         insulin_sensitivity_factor,
         carb_insulin_ratio,
-        insulin_model=None,
-        carb_model=None,
+        glucose_sensitivity_factor=0,
+        basal_blood_glucose=100,
+        insulin_production_rate=0,
+        insulin_model_name="palerm",
+        carb_model_name="cescon",
+        type2_insulin_model_name="t2_insulin"
+
     ):
         """
         Parameters
@@ -28,16 +34,31 @@ class SimpleMetabolismModel(object):
             How many mg/dL are reduced by 1 unit of insulin, units: mg/dL / U
 
         carb_insulin_ratio: float
-            How many g carbs are offset by 1 unit of insulin, units: g / mg/dL
-
-        insulin_model: TreatmentModel
+            How many g carbs are offset by 1 unit of insulin, units: g / U
+        
+        glucose_sensitivity_factor: float
+            How many units of pancreatic insulin are released by blood glucose 1 mg/dL over basal, units: U / mg/dL
+        
+        basal_blood_glucose: float
+            The blood glucose level above which the pancreas model releases insulin, units mg/dL
+        
+        insulin_production_rate: float
+            The basal amount of insulin produced by the pancreas
+        
+        insulin_model_name: str
             Name of the insulin model to use
 
         carb_model: TreatmentModel
             Name of the carb model to use
+        
+        type2_insulin_model_name: str
+            Name of the type 2 insulin model to use
         """
         self._cir = carb_insulin_ratio
         self._isf = insulin_sensitivity_factor
+        self._gsf = glucose_sensitivity_factor
+        self._bsr = basal_blood_glucose
+        self._ipr = insulin_production_rate
 
         self.insulin_model = insulin_model
         if insulin_model is None:
@@ -50,6 +71,15 @@ class SimpleMetabolismModel(object):
             self.carb_model = CesconCarbModel(
                 isf=insulin_sensitivity_factor, cir=carb_insulin_ratio
             )
+        else:
+            raise ValueError("{} not a recognized carb model.".format(carb_model_name))
+    
+        if type2_insulin_model_name == "t2_insulin":
+            self.type2_insulin_model = Type2InsulinModel(
+                isf=insulin_sensitivity_factor, gsf=glucose_sensitivity_factor, bbg=basal_blood_glucose, ipr=insulin_production_rate
+            )
+        else:
+            raise ValueError("{} not a recognized pancreas model.".format(type2_insulin_model_name))
 
     def run(self, carb_amount, carb_absorb_minutes, insulin_amount=np.nan, num_hours=8, five_min=True):
         """
@@ -66,6 +96,9 @@ class SimpleMetabolismModel(object):
 
         insulin_amount: float
             Amount of insulin, if not given is calculated based on carb_amount
+
+        blood_glucose: float
+            Current blood glucose level, units: mg/dL
 
         num_hours: float
             Number of hours to run the simulation past t0
@@ -117,8 +150,15 @@ class SimpleMetabolismModel(object):
             )
             combined_delta_bg += bg_delta_carb
 
+        # Type 2 insulin model
+        t_min, bg_delta_t2, ei = self.type2_insulin_model.run(
+            num_hours, blood_glucose=blood_glucose, five_min=five_min
+        )
+
+        combined_delta_bg += bg_delta_t2
+
         # +CS - Why are we returning the carb and insulin amt?
-        return combined_delta_bg, t_min, insulin_amount, iob
+        return combined_delta_bg, t_min, insulin_amount, iob, ei
 
     def get_iob_from_sbr(self, sbr_actual):
         """
