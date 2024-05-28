@@ -15,7 +15,7 @@ class TreatmentModel(object):
     def __init__(self, name):
         self.name = name
 
-    def run(self, t, treatment_amount):
+    def run(self, t, treatment_amount, **kwargs):
         raise NotImplementedError
 
     def __repr__(self):
@@ -126,11 +126,128 @@ class CesconCarbModel(TreatmentModel):
         self._cir = kwargs["cir"]
 
         # Defaults are from Cescon paper
-        self._tau = kwargs.get("tau", 42)
         self._theta = kwargs.get("theta", 20)
         self._Kcl = kwargs.get("kcl", 1)
 
-    def run(self, num_hours, carb_amount, five_min=True):
+        self.absorption_time_hrs_tau_map = {
+            25: 1,
+            30: 2,
+            35: 3,
+            40: 4,
+            45: 5,
+            50: 6,
+            55: 7,
+            60: 8,
+            65: 9,
+            70: 10,
+            75: 11,
+            80: 13,
+            85: 14,
+            90: 15,
+            95: 16,
+            100: 17,
+            105: 18,
+            110: 19,
+            115: 20,
+            120: 21,
+            125: 22,
+            130: 23,
+            135: 24,
+            140: 26,
+            145: 27,
+            150: 28,
+            155: 29,
+            160: 30,
+            165: 31,
+            170: 32,
+            175: 33,
+            180: 34,
+            185: 35,
+            190: 36,
+            195: 38,
+            200: 39,
+            205: 40,
+            210: 41,
+            215: 42,
+            220: 43,
+            225: 44,
+            230: 45,
+            235: 46,
+            240: 47,
+            245: 48,
+            250: 49,
+            255: 51,
+            260: 52,
+            265: 53,
+            270: 54,
+            275: 55,
+            280: 56,
+            285: 57,
+            290: 58,
+            295: 59,
+            300: 60,
+            305: 61,
+            310: 62,
+            315: 64,
+            320: 65,
+            325: 66,
+            330: 67,
+            335: 68,
+            340: 69,
+            345: 70,
+            350: 71,
+            355: 72,
+            360: 73,
+            365: 74,
+            370: 76,
+            375: 77,
+            380: 78,
+            385: 79,
+            390: 80,
+            395: 81,
+            400: 82,
+            405: 83,
+            410: 84,
+            415: 85,
+            420: 86,
+            425: 87,
+            430: 89,
+            435: 90,
+            440: 91,
+            445: 92,
+            450: 93,
+            455: 94,
+            460: 95,
+            465: 96,
+            470: 97,
+            475: 98,
+            480: 99,
+            485: 100,
+            490: 102,
+            495: 103,
+            500: 104,
+            505: 105,
+            510: 106,
+            515: 107,
+            520: 108,
+            525: 109,
+            530: 110,
+            535: 111,
+            540: 112,
+            545: 114,
+            550: 115,
+            555: 116,
+            560: 117,
+            565: 118,
+            570: 119,
+            575: 120,
+            580: 121,
+            585: 122,
+            590: 123,
+            595: 124,
+        }
+
+    def run(self, num_hours, carb_amount, carb_absorb_minutes, five_min=True):
         """
         Run the model for num hours assuming that the carb amount
         is given at t=0.
@@ -160,7 +277,12 @@ class CesconCarbModel(TreatmentModel):
             t_min = get_timeseries(num_hours, five_min=True)
 
         K = self._isf / self._cir  # mg/dL / g = (mg/dL / U) / (g / U)
-        tau = self._tau
+
+        if carb_absorb_minutes < 25 or carb_absorb_minutes > 595:  # 25 minutes or ~10 hours
+            raise Exception("Absorption time minutes must be ")
+
+        minutes_increment_5 = 5 * np.floor(carb_absorb_minutes / 5)  # round to nearest five
+        tau = self.absorption_time_hrs_tau_map[minutes_increment_5]
         theta = self._theta
 
         # mg/dL * min = (mg/dL / g) * g * min
