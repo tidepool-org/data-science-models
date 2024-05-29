@@ -18,6 +18,7 @@ def test_simple_metabolism_model():
     isf = 100
     cir = 10
     carb_amount = 0.0
+    blood_glucose = 100
 
     # Instantiate the class with the same values
     smm = SimpleMetabolismModel(
@@ -29,14 +30,13 @@ def test_simple_metabolism_model():
 
     for insulin_amount in [1.0, 10.0]:
 
-        (net_change_in_bg, t_5min, insulin_amount, iob_5min,) = smm.run(
-            carb_amount=carb_amount, insulin_amount=insulin_amount, five_min=True
+        (net_change_in_bg, t_5min, insulin_amount, iob_5min, ei,) = smm.run(
+            carb_amount=carb_amount, blood_glucose=blood_glucose, insulin_amount=insulin_amount, five_min=True
         )
 
         assert iob_5min[-1] < (INSULIN_DECAY_8HR_EPSILON * insulin_amount)
         assert len(net_change_in_bg) == 8 * 60 / 5
         assert iob_5min[0] == insulin_amount
-
 
 def test_insulin_onboard_from_scheduled_basal_rate():
     isf = 100

@@ -1,8 +1,6 @@
 language: python
 python:
-  - "3.6"      # current default Python on Travis CI
-  - "3.7"
-  - "3.8"
+  - "3.9"      # Travis CI defaults were too old 3.6-3.8
 before_install:
   - "export PYTHONPATH=$PYTHONPATH:$(pwd)"
 # command to install dependencies

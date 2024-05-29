@@ -19,6 +19,7 @@ def test_simple_metabolism_model_class():
     """
     cir = 10
     isf = 100
+    blood_glucose = 100
 
     carb_insulin_pairs = [
         (0.0, 1.0),
@@ -49,10 +50,11 @@ def test_simple_metabolism_model_class():
             carb_model_name="cescon",
         )
 
-        (delta_bg_smm, t_5min_smm, insulin_amount_smm, iob_5min_smm,) = smm.run(
+        (delta_bg_smm, t_5min_smm, insulin_amount_smm, iob_5min_smm, ei_5min_smm) = smm.run(
             num_hours=8,
             carb_amount=carb_amount,
             insulin_amount=insulin_amount,
+            blood_glucose=blood_glucose,
             five_min=True,
         )
 

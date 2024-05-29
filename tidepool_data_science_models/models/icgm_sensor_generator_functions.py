@@ -274,6 +274,7 @@ def generate_icgm_sensors(
             [generate_spurious_bg(true_bg_value) for true_bg_value in true_matrix[state == 1]]
         )
 
+
     # capture the individual sensor characertistics for future simulation
     ind_sensor_properties = pd.DataFrame(index=[np.arange(0, n_sensors)])
     ind_sensor_properties["initial_bias"] = initial_bias
