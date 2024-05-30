@@ -60,14 +60,14 @@ class SimpleMetabolismModel(object):
         self._bsr = basal_blood_glucose
         self._ipr = insulin_production_rate
 
-        self.insulin_model = insulin_model
-        if insulin_model is None:
+        if insulin_model_name == 'Palerm' or 'palerm':
             self.insulin_model = PalermInsulinModel(
                 isf=insulin_sensitivity_factor, cir=carb_insulin_ratio
             )
-
-        self.carb_model = carb_model
-        if carb_model is None:
+        else:
+            raise ValueError("{} not a recognized insulin model.".format(insulin_model_name))    
+        
+        if carb_model_name == "Cescon" or "cescon":
             self.carb_model = CesconCarbModel(
                 isf=insulin_sensitivity_factor, cir=carb_insulin_ratio
             )
@@ -81,7 +81,7 @@ class SimpleMetabolismModel(object):
         else:
             raise ValueError("{} not a recognized pancreas model.".format(type2_insulin_model_name))
 
-    def run(self, carb_amount, carb_absorb_minutes, insulin_amount=np.nan, num_hours=8, five_min=True):
+    def run(self, carb_amount, carb_absorb_minutes, blood_glucose, insulin_amount=np.nan,  num_hours=8, five_min=True):
         """
         Compute a num_hours long, 5-min interval time series metabolic response to insulin and carbs inputs
         at t0. Carbs and insulin can be either zero or non-zero.
@@ -96,6 +96,9 @@ class SimpleMetabolismModel(object):
 
         insulin_amount: float
             Amount of insulin, if not given is calculated based on carb_amount
+        
+        carb_absorb_minutes: float
+            Durtaion overwhich carbs are absorbed, units: minutes
 
         blood_glucose: float
             Current blood glucose level, units: mg/dL
