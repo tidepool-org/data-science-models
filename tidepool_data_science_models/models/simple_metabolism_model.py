@@ -81,7 +81,7 @@ class SimpleMetabolismModel(object):
         else:
             raise ValueError("{} not a recognized pancreas model.".format(type2_insulin_model_name))
 
-    def run(self, carb_amount, carb_absorb_minutes, blood_glucose, insulin_amount=np.nan,  num_hours=8, five_min=True):
+    def run(self, carb_amount, carb_absorb_minutes=180, blood_glucose=None, insulin_amount=np.nan,  num_hours=8, five_min=True):
         """
         Compute a num_hours long, 5-min interval time series metabolic response to insulin and carbs inputs
         at t0. Carbs and insulin can be either zero or non-zero.
@@ -154,14 +154,16 @@ class SimpleMetabolismModel(object):
             combined_delta_bg += bg_delta_carb
 
         # Type 2 insulin model
-        t_min, bg_delta_t2, ei = self.type2_insulin_model.run(
-            num_hours, blood_glucose=blood_glucose, five_min=five_min
-        )
-
-        combined_delta_bg += bg_delta_t2
+        
+        if blood_glucose:
+            t_min, bg_delta_t2, ei = self.type2_insulin_model.run(
+                num_hours, blood_glucose=blood_glucose, five_min=five_min
+            )
+            combined_delta_bg += bg_delta_t2
+            return combined_delta_bg, t_min, insulin_amount, iob, ei
 
         # +CS - Why are we returning the carb and insulin amt?
-        return combined_delta_bg, t_min, insulin_amount, iob, ei
+        return combined_delta_bg, t_min, insulin_amount, iob
 
     def get_iob_from_sbr(self, sbr_actual):
         """
