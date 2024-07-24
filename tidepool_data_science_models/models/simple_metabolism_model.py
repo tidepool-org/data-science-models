@@ -12,7 +12,7 @@ from tidepool_data_science_models.models.treatment_models import PalermInsulinMo
 class SimpleMetabolismModel(object):
     """
     A class with modular ability to run different insulin and carb algorithms
-    for modeling metabolism of insulin and carbs in the body. The 
+    for modeling metabolism of insulin and carbs in the body.  
     """
 
     def __init__(
@@ -84,7 +84,7 @@ class SimpleMetabolismModel(object):
     def run(self, carb_amount, carb_absorb_minutes=180, blood_glucose=None, insulin_amount=np.nan,  num_hours=8, five_min=True):
         """
         Compute a num_hours long, 5-min interval time series metabolic response to insulin and carbs inputs
-        at t0. Carbs and insulin can be either zero or non-zero.
+        at t0 and the current blood glucose value. Carbs and insulin can be either zero or non-zero.
 
         If insulin is not given, the amount is automatically determined by the carb input using bolus
         wizard logic.

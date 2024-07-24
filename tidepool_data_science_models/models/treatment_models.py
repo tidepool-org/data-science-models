@@ -319,16 +319,15 @@ class Type2InsulinModel(TreatmentModel):
 
     def run(self, num_hours, blood_glucose, five_min=True):
         """
-        Run the model for num hours assuming that the carb amount
-        is given at t=0.
+        Run the model for num hours
 
         Parameters
         ----------
         num_hours: float
             The amount of time in hours to compute the effect
 
-        carb_amount: float
-            The amount of carbs to use for running the model
+        blood_glucose: float
+            The current blood glucose of the patient model
 
         five_min: bool
             If true, run the model in increments of 5 minutes, otherwise
