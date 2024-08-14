@@ -47,13 +47,13 @@ def test_simple_metabolism_model_class():
             insulin_sensitivity_factor=isf,
             carb_insulin_ratio=cir,
             insulin_model_name="palerm",
-            carb_absorb_minutes=215,
             carb_model_name="cescon",
         )
 
         (delta_bg_smm, t_5min_smm, insulin_amount_smm, iob_5min_smm, ei_5min_smm) = smm.run(
             num_hours=8,
             carb_amount=carb_amount,
+            carb_absorb_minutes=215,
             insulin_amount=insulin_amount,
             blood_glucose=blood_glucose,
             five_min=True,
@@ -68,9 +68,6 @@ def test_simple_metabolism_model_class():
         assert np.array_equal(t_5min_func, t_5min_smm)
         assert np.array_equal(insulin_amount_func, insulin_amount_smm)
         assert np.array_equal(iob_5min_func, iob_5min_smm)
-
-test_simple_metabolism_model_class()
-
 
 
 def test_simple_metabolism_model_class_iob_sbr():
