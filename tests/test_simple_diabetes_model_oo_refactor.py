@@ -47,6 +47,7 @@ def test_simple_metabolism_model_class():
             insulin_sensitivity_factor=isf,
             carb_insulin_ratio=cir,
             insulin_model_name="palerm",
+            carb_absorb_minutes=215,
             carb_model_name="cescon",
         )
 
@@ -67,6 +68,9 @@ def test_simple_metabolism_model_class():
         assert np.array_equal(t_5min_func, t_5min_smm)
         assert np.array_equal(insulin_amount_func, insulin_amount_smm)
         assert np.array_equal(iob_5min_func, iob_5min_smm)
+
+test_simple_metabolism_model_class()
+
 
 
 def test_simple_metabolism_model_class_iob_sbr():
