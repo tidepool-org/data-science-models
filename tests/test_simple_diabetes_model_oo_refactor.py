@@ -53,6 +53,7 @@ def test_simple_metabolism_model_class():
         (delta_bg_smm, t_5min_smm, insulin_amount_smm, iob_5min_smm, ei_5min_smm) = smm.run(
             num_hours=8,
             carb_amount=carb_amount,
+            carb_absorb_minutes=215,
             insulin_amount=insulin_amount,
             blood_glucose=blood_glucose,
             five_min=True,

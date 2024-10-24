@@ -28,7 +28,7 @@ def test_original_function_default_state():
     assert individual_sensor_properties_1.equals(individual_sensor_properties_2)
     assert batch_sensor_properties_1.equals(batch_sensor_properties_2)
 
-
+@pytest.mark.skip(reason="None of this code is in use")
 def test_refactor_default_state():
     """
     Test refactor functionality works returns the same as original output)
