@@ -108,6 +108,7 @@ class SimpleMetabolismModel(object):
         """
         tau_mapping = {
             # Fast-acting insulins
+            "novolog": {"tau1": 55, "tau2": 70},
             "rapid_acting_adult": {"tau1": 55, "tau2": 70},
             "rapid_acting_child": {"tau1": 50, "tau2": 65},
             "fiasp": {"tau1": 35, "tau2": 45},
