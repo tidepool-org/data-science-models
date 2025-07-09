@@ -24,7 +24,8 @@ class SimpleMetabolismModel(object):
         insulin_production_rate=0,
         insulin_model_name="palerm",
         carb_model_name="cescon",
-        type2_insulin_model_name="t2_insulin"
+        type2_insulin_model_name="t2_insulin",
+        patient_insulin_type = "rapid_acting_adult"
 
     ):
         """
@@ -53,6 +54,10 @@ class SimpleMetabolismModel(object):
         
         type2_insulin_model_name: str
             Name of the type 2 insulin model to use
+
+        patient_insulin_type: str
+            The actual insulin type the patient's body responds to
+            (e.g., "rapid_acting_adult", "glargine", "fiasp")
         """
         self._cir = carb_insulin_ratio
         self._isf = insulin_sensitivity_factor
@@ -61,12 +66,18 @@ class SimpleMetabolismModel(object):
         self._ipr = insulin_production_rate
 
         if insulin_model_name == 'Palerm' or 'palerm':
+            # Get tau parameters for the patient's actual insulin type
+            tau_params = self._get_tau_params_for_insulin_type(patient_insulin_type)
+
             self.insulin_model = PalermInsulinModel(
-                isf=insulin_sensitivity_factor, cir=carb_insulin_ratio
+                isf=insulin_sensitivity_factor,
+                cir=carb_insulin_ratio,
+                tau1=tau_params["tau1"],
+                tau2=tau_params["tau2"]
             )
         else:
-            raise ValueError("{} not a recognized insulin model.".format(insulin_model_name))    
-        
+            raise ValueError("{} not a recognized insulin model.".format(insulin_model_name))
+
         if carb_model_name == "Cescon" or "cescon":
             self.carb_model = CesconCarbModel(
                 isf=insulin_sensitivity_factor, cir=carb_insulin_ratio
@@ -80,6 +91,50 @@ class SimpleMetabolismModel(object):
             )
         else:
             raise ValueError("{} not a recognized pancreas model.".format(type2_insulin_model_name))
+
+    def _get_tau_params_for_insulin_type(self, insulin_type):
+        """
+        Map insulin types to appropriate tau1/tau2 parameters for PalermInsulinModel.
+
+        Parameters
+        ----------
+        insulin_type : str
+            The insulin type (e.g., "rapid_acting_adult", "glargine")
+
+        Returns
+        -------
+        dict
+            Dictionary with "tau1" and "tau2" keys
+        """
+        tau_mapping = {
+            # Fast-acting insulins
+            "novolog": {"tau1": 55, "tau2": 70},
+            "rapid_acting_adult": {"tau1": 55, "tau2": 70},
+            "rapid_acting_child": {"tau1": 50, "tau2": 65},
+            "fiasp": {"tau1": 35, "tau2": 45},
+
+            # Theoretical fast insulins
+            "theoretical_fast_1": {"tau1": 20, "tau2": 25},
+            "theoretical_fast_2": {"tau1": 20, "tau2": 25},
+            "theoretical_fast_3": {"tau1": 20, "tau2": 25},
+            "theoretical_fast_4": {"tau1": 20, "tau2": 25},
+            "theoretical_fast_5": {"tau1": 15, "tau2": 20},
+
+            # Regular/slower insulins
+            "regular": {"tau1": 85, "tau2": 110},
+            "u500": {"tau1": 90, "tau2": 120},
+
+            # Long-acting insulins
+            "nph": {"tau1": 150, "tau2": 200},
+            "glargine": {"tau1": 300, "tau2": 400},
+            "degludec": {"tau1": 400, "tau2": 500},
+        }
+
+        if insulin_type not in tau_mapping:
+            print(f"Warning: Unknown insulin type '{insulin_type}', using rapid_acting_adult defaults")
+            return {"tau1": 55, "tau2": 70}
+
+        return tau_mapping[insulin_type]
 
     def run(self, carb_amount, carb_absorb_minutes=180, blood_glucose=None, insulin_amount=np.nan,  num_hours=8, five_min=True):
         """
