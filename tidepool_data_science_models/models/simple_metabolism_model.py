@@ -5,8 +5,7 @@ This file houses everything related to the insulin and carb modeling math.
 import numpy as np
 
 from tidepool_data_science_models.utils import MINUTES_PER_HOUR, STEADY_STATE_IOB_FACTOR_FDA, get_timeseries
-from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel, Type2InsulinModel
-
+from tidepool_data_science_models.models.treatment_models import PalermInsulinModel, CesconCarbModel, Type2InsulinModel, AielloPAModel
 
 
 class SimpleMetabolismModel(object):
@@ -24,8 +23,13 @@ class SimpleMetabolismModel(object):
         insulin_production_rate=0,
         insulin_model_name="palerm",
         carb_model_name="cescon",
+        pa_model_name="aiello",
         type2_insulin_model_name="t2_insulin",
-        patient_insulin_type = "rapid_acting_adult"
+        patient_insulin_type = "rapid_acting_adult",
+        w_hr=1.0,
+        a=-0.002462,
+        tau=0.9989,
+        n=28,
 
     ):
         """
@@ -74,6 +78,7 @@ class SimpleMetabolismModel(object):
                 cir=carb_insulin_ratio,
                 tau1=tau_params["tau1"],
                 tau2=tau_params["tau2"]
+
             )
         else:
             raise ValueError("{} not a recognized insulin model.".format(insulin_model_name))
@@ -84,7 +89,14 @@ class SimpleMetabolismModel(object):
             )
         else:
             raise ValueError("{} not a recognized carb model.".format(carb_model_name))
-    
+
+        if pa_model_name == "aiello":
+            self.pa_model = AielloPAModel(
+                isf=insulin_sensitivity_factor, cir=carb_insulin_ratio, w_hr=w_hr, a=a, tau=tau, n=n
+            )
+        else:
+            raise ValueError("{} not a recognized PA model.".format(pa_model_name))
+
         if type2_insulin_model_name == "t2_insulin":
             self.type2_insulin_model = Type2InsulinModel(
                 isf=insulin_sensitivity_factor, gsf=glucose_sensitivity_factor, bbg=basal_blood_glucose, ipr=insulin_production_rate
@@ -135,7 +147,7 @@ class SimpleMetabolismModel(object):
 
         return tau_mapping[insulin_type]
 
-    def run(self, carb_amount, carb_absorb_minutes=180, blood_glucose=None, insulin_amount=np.nan,  num_hours=8, five_min=True):
+    def run(self, carb_amount, carb_absorb_minutes=180, blood_glucose=None, heart_rate=0, insulin_amount=np.nan,  num_hours=8, five_min=True):
         """
         Compute a num_hours long, 5-min interval time series metabolic response to insulin and carbs inputs
         at t0 and the current blood glucose value. Carbs and insulin can be either zero or non-zero.
@@ -152,7 +164,7 @@ class SimpleMetabolismModel(object):
             Amount of insulin, if not given is calculated based on carb_amount
         
         carb_absorb_minutes: float
-            Durtaion overwhich carbs are absorbed, units: minutes
+            Duration over which carbs are absorbed, units: minutes
 
         blood_glucose: float
             Current blood glucose level, units: mg/dL
@@ -207,6 +219,13 @@ class SimpleMetabolismModel(object):
             )
             combined_delta_bg += bg_delta_carb
 
+        # pa model
+        if heart_rate > 0:
+            t_min, bg_delta_pa, bg = self.pa_model.run(
+            num_hours, hr_amount=heart_rate, five_min=five_min
+        )
+            combined_delta_bg += bg_delta_pa
+
         # Type 2 insulin model
         
         if blood_glucose:
@@ -240,7 +259,7 @@ class SimpleMetabolismModel(object):
         Returns
         -------
         np.array
-            The insulin on board every five munutes for 8 hours
+            The insulin on board every five minutes for 8 hours
         """
         # Step 1: Get 8 hr iob from a bolus that is 1/12 of the scheduled basal rate.
         #         This assumes basal rate is a series of boluses at 5 min intervals.
