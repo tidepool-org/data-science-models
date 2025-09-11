@@ -298,6 +298,70 @@ class CesconCarbModel(TreatmentModel):
 
         return t_min, bg_delta, bg
 
+
+class AielloPAModel(TreatmentModel):
+
+    def __init__(self, **kwargs):
+        """
+        Parameters
+        ----------
+        kwargs: dict
+            Arguments specific to the model.
+        """
+        super().__init__("Aiello")
+        self._isf = kwargs["isf"]
+        self._cir = kwargs["cir"]
+        self._w_hr = kwargs["w_hr"]
+        self._tau = kwargs["tau"]
+        self._n = kwargs["n"]
+        self._a = kwargs["a"]
+
+    def run(self, num_hours, hr_amount, five_min=True):
+        """
+        Run the model for num hours assuming that the carb amount
+        is given at t=0.
+
+        Parameters
+        ----------
+        num_hours: float
+            The amount of time in hours to compute the effect
+
+        hr_amount: float
+            The HR for running the model
+
+        five_min: bool
+            If true, run the model in increments of 5 minutes, otherwise
+            1 minute
+
+        Returns
+        -------
+        (np.array, np.array, np.array)
+            t: The time series in minutes
+            bg_delta: The change in bg for each time in t
+            bg: The bg for each time in t starting at 0
+        """
+        a = self._a
+        tau = self._tau
+        n = self._n * 10  # convert to steps in increments of 10 seconds
+
+        seconds_in_model = int(num_hours * 60 * 60)
+        t_min = np.arange(0, seconds_in_model, 10)
+
+        bg = 10 * (hr_amount - 72) * a * (tau ** (t_min - n)) * np.heaviside(t_min - n, 1)
+
+        bg = np.nan_to_num(bg, nan=0)
+
+        if five_min:
+            step_size = 30
+        else:
+            step_size = 6
+
+        bg = bg[::step_size]
+
+        # mg/dL / min
+        bg_delta = self._w_hr * bg  # scale drop in bg by w_hr
+        return t_min, bg_delta, bg
+
 class Type2InsulinModel(TreatmentModel):
 
     def __init__(self, **kwargs):
